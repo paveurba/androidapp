@@ -1,0 +1,6 @@
+R_DEF: Internal format may change without notice
+local
+color black
+color white
+mipmap ic_launcher
+mipmap ic_launcher_round
