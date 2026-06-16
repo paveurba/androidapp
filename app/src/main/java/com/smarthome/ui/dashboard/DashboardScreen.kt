@@ -8,10 +8,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.smarthome.data.SensorRepository
 import com.smarthome.data.TempSensor
 import kotlinx.coroutines.launch
+
+enum class TempUnit { CELSIUS, FAHRENHEIT }
+
+fun Float.toUnit(unit: TempUnit): Float = if (unit == TempUnit.FAHRENHEIT) (this * 9/5) + 32 else this
+fun TempUnit.symbol(): String = if (this == TempUnit.FAHRENHEIT) "°F" else "°C"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -21,6 +27,7 @@ fun DashboardScreen(
 ) {
     val sensors by sensorRepository.getSensors().collectAsState(initial = emptyList())
     var selectedSensor by remember { mutableStateOf<TempSensor?>(null) }
+    var tempUnit by remember { mutableStateOf(TempUnit.CELSIUS) }
     val scope = rememberCoroutineScope()
 
     // Sync selected sensor with the latest data from the repository
@@ -33,8 +40,13 @@ fun DashboardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Smart Home Dashboard") },
+                title = { Text("Smart Home") },
                 actions = {
+                    TextButton(onClick = {
+                        tempUnit = if (tempUnit == TempUnit.CELSIUS) TempUnit.FAHRENHEIT else TempUnit.CELSIUS
+                    }) {
+                        Text(if (tempUnit == TempUnit.CELSIUS) "°C" else "°F")
+                    }
                     TextButton(onClick = onLogout) {
                         Text("Logout", color = MaterialTheme.colorScheme.error)
                     }
@@ -74,8 +86,10 @@ fun DashboardScreen(
                     ThermostatControl(
                         currentTemp = selectedSensor!!.currentTemp,
                         setTemp = selectedSensor!!.setTemp,
+                        unit = tempUnit,
                         onSetTempChanged = { newTemp ->
                             scope.launch {
+                                // Repository expects Celsius
                                 sensorRepository.updateSetTemp(selectedSensor!!.id, newTemp)
                             }
                         }
@@ -96,7 +110,11 @@ fun DashboardScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(sensors) { sensor ->
-                            SensorCard(sensor = sensor, onClick = { selectedSensor = sensor })
+                            SensorCard(
+                                sensor = sensor,
+                                unit = tempUnit,
+                                onClick = { selectedSensor = sensor }
+                            )
                         }
                     }
                 }
@@ -106,12 +124,22 @@ fun DashboardScreen(
 }
 
 @Composable
-fun SensorCard(sensor: TempSensor, onClick: () -> Unit) {
+fun SensorCard(sensor: TempSensor, unit: TempUnit, onClick: () -> Unit) {
+    val isHeatingNeeded = sensor.currentTemp < sensor.setTemp
+    val isBatteryLow = sensor.batteryLevel < 20
+    val isStale = System.currentTimeMillis() - sensor.lastUpdated > 3600000 // 1 hour
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isHeatingNeeded) 
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) 
+            else 
+                MaterialTheme.colorScheme.surface
+        )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -122,15 +150,15 @@ fun SensorCard(sensor: TempSensor, onClick: () -> Unit) {
                 Column {
                     Text(text = sensor.name, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = "Set: ${"%.1f".format(sensor.setTemp)}°C",
+                        text = "Set: ${"%.1f".format(sensor.setTemp.toUnit(unit))}${unit.symbol()}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.secondary
                     )
                 }
                 Text(
-                    text = "${"%.1f".format(sensor.currentTemp)}°C",
+                    text = "${"%.1f".format(sensor.currentTemp.toUnit(unit))}${unit.symbol()}",
                     style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.primary
+                    color = if (isHeatingNeeded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                 )
             }
             
@@ -143,7 +171,11 @@ fun SensorCard(sensor: TempSensor, onClick: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 SensorInfoItem(label = "Humidity", value = "${sensor.humidity.toInt()}%")
-                SensorInfoItem(label = "Battery", value = "${sensor.batteryLevel}%")
+                SensorInfoItem(
+                    label = "Battery", 
+                    value = "${sensor.batteryLevel}%",
+                    valueColor = if (isBatteryLow) MaterialTheme.colorScheme.error else Color.Unspecified
+                )
                 SensorInfoItem(label = "Link", value = "${sensor.linkQuality}")
             }
             
@@ -151,7 +183,7 @@ fun SensorCard(sensor: TempSensor, onClick: () -> Unit) {
             Text(
                 text = "Last updated: ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(sensor.lastUpdated))}",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.outline,
+                color = if (isStale) Color(0xFFF57C00) else MaterialTheme.colorScheme.outline, // Orange if stale
                 modifier = Modifier.align(Alignment.End)
             )
         }
@@ -159,9 +191,14 @@ fun SensorCard(sensor: TempSensor, onClick: () -> Unit) {
 }
 
 @Composable
-fun SensorInfoItem(label: String, value: String) {
+fun SensorInfoItem(label: String, value: String, valueColor: Color = Color.Unspecified) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-        Text(text = value, style = MaterialTheme.typography.bodySmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+        Text(
+            text = value, 
+            style = MaterialTheme.typography.bodySmall, 
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            color = valueColor
+        )
     }
 }

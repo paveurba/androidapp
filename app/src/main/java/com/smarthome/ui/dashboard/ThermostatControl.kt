@@ -25,11 +25,16 @@ import kotlin.math.sin
 fun ThermostatControl(
     currentTemp: Float,
     setTemp: Float,
+    unit: TempUnit,
     onSetTempChanged: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var tempValue by remember { mutableStateOf(setTemp) }
-    val animatedTemp by animateFloatAsState(targetValue = tempValue)
+    // Internally we keep everything in Celsius to match the repository
+    var tempValue by remember(setTemp) { mutableStateOf(setTemp) }
+    val animatedTemp by animateFloatAsState(targetValue = tempValue, label = "tempAnimation")
+
+    val minTemp = 0f
+    val maxTemp = 30f
 
     Box(
         modifier = modifier.size(250.dp),
@@ -38,26 +43,27 @@ fun ThermostatControl(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectDragGestures { change, _ ->
-                        val touchX = change.position.x - size.width / 2
-                        val touchY = change.position.y - size.height / 2
-                        val angle = atan2(touchY, touchX)
-                        // Convert angle to temp range (e.g., 15 - 30 degrees)
-                        var normalizedAngle = (angle * 180 / PI).toFloat() + 90f
-                        if (normalizedAngle < 0) normalizedAngle += 360f
-                        
-                        // Map 0-360 to 15-30
-                        val newTemp = 15f + (normalizedAngle / 360f) * 15f
-                        tempValue = newTemp.coerceIn(15f, 30f)
-                        onSetTempChanged(tempValue)
-                    }
+                .pointerInput(setTemp) {
+                    detectDragGestures(
+                        onDrag = { change, _ ->
+                            val touchX = change.position.x - size.width / 2
+                            val touchY = change.position.y - size.height / 2
+                            val angle = atan2(touchY, touchX)
+                            var normalizedAngle = (angle * 180 / PI).toFloat() + 90f
+                            if (normalizedAngle < 0) normalizedAngle += 360f
+                            
+                            val newTemp = minTemp + (normalizedAngle / 360f) * (maxTemp - minTemp)
+                            tempValue = newTemp.coerceIn(minTemp, maxTemp)
+                        },
+                        onDragEnd = {
+                            onSetTempChanged(tempValue)
+                        }
+                    )
                 }
         ) {
             val center = Offset(size.width / 2, size.height / 2)
             val radius = size.width / 2 - 20.dp.toPx()
 
-            // Draw Background Track
             drawCircle(
                 color = Color.LightGray.copy(alpha = 0.3f),
                 radius = radius,
@@ -65,10 +71,9 @@ fun ThermostatControl(
                 style = Stroke(width = 15.dp.toPx())
             )
 
-            // Draw Progress Arc
-            val sweepAngle = ((tempValue - 15f) / 15f) * 360f
+            val sweepAngle = ((tempValue - minTemp) / (maxTemp - minTemp)) * 360f
             drawArc(
-                color = Color(0xFFEF5350), // Warm Red
+                color = Color(0xFFEF5350),
                 startAngle = -90f,
                 sweepAngle = sweepAngle,
                 useCenter = false,
@@ -77,7 +82,6 @@ fun ThermostatControl(
                 style = Stroke(width = 15.dp.toPx(), cap = StrokeCap.Round)
             )
 
-            // Draw Knob
             val knobAngle = sweepAngle - 90f
             val knobRadius = radius
             val knobX = center.x + knobRadius * cos(knobAngle * PI / 180).toFloat()
@@ -97,7 +101,7 @@ fun ThermostatControl(
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "${animatedTemp.toInt()}°C",
+                text = "${animatedTemp.toUnit(unit).toInt()}${unit.symbol()}",
                 style = MaterialTheme.typography.displayMedium,
                 color = Color(0xFFEF5350)
             )
@@ -107,7 +111,7 @@ fun ThermostatControl(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Current: ${currentTemp.toInt()}°C",
+                text = "Current: ${currentTemp.toUnit(unit).toInt()}${unit.symbol()}",
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color.Gray
             )

@@ -23,8 +23,8 @@ interface SensorRepository {
 class MockSensorRepository : SensorRepository {
     private val sensors = mutableListOf(
         TempSensor("1", "Living Room", 22.5f, 22.0f, 45.0f, 85, 200, System.currentTimeMillis()),
-        TempSensor("2", "Bedroom", 20.1f, 19.0f, 50.0f, 92, 180, System.currentTimeMillis() - 60000),
-        TempSensor("3", "Kitchen", 24.0f, 23.5f, 55.0f, 45, 150, System.currentTimeMillis() - 120000)
+        TempSensor("2", "Bedroom", 18.1f, 20.0f, 50.0f, 15, 180, System.currentTimeMillis() - 60000), // Below set temp + Low battery
+        TempSensor("3", "Kitchen", 24.0f, 23.5f, 55.0f, 45, 150, System.currentTimeMillis() - 4000000) // Stale data (> 1 hour)
     )
 
     override fun getSensors(): Flow<List<TempSensor>> = flow {
