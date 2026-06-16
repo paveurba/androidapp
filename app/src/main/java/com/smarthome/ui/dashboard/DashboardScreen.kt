@@ -4,6 +4,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +22,8 @@ enum class TempUnit { CELSIUS, FAHRENHEIT }
 fun Float.toUnit(unit: TempUnit): Float = if (unit == TempUnit.FAHRENHEIT) (this * 9/5) + 32 else this
 fun TempUnit.symbol(): String = if (this == TempUnit.FAHRENHEIT) "°F" else "°C"
 
+private val timeFormatter = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
@@ -28,6 +33,7 @@ fun DashboardScreen(
     val sensors by sensorRepository.getSensors().collectAsState(initial = emptyList())
     var selectedSensor by remember { mutableStateOf<TempSensor?>(null) }
     var tempUnit by remember { mutableStateOf(TempUnit.CELSIUS) }
+    var currentTab by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
     // Sync selected sensor with the latest data from the repository
@@ -40,18 +46,38 @@ fun DashboardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Smart Home") },
+                title = { Text(if (currentTab == 0) "Smart Home" else "Schedules") },
                 actions = {
-                    TextButton(onClick = {
-                        tempUnit = if (tempUnit == TempUnit.CELSIUS) TempUnit.FAHRENHEIT else TempUnit.CELSIUS
-                    }) {
-                        Text(if (tempUnit == TempUnit.CELSIUS) "°C" else "°F")
+                    if (currentTab == 0) {
+                        TextButton(onClick = {
+                            tempUnit = if (tempUnit == TempUnit.CELSIUS) TempUnit.FAHRENHEIT else TempUnit.CELSIUS
+                        }) {
+                            Text(if (tempUnit == TempUnit.CELSIUS) "°C" else "°F")
+                        }
                     }
                     TextButton(onClick = onLogout) {
                         Text("Logout", color = MaterialTheme.colorScheme.error)
                     }
                 }
             )
+        },
+        bottomBar = {
+            if (selectedSensor == null) {
+                NavigationBar {
+                    NavigationBarItem(
+                        selected = currentTab == 0,
+                        onClick = { currentTab = 0 },
+                        icon = { Icon(Icons.Default.Home, contentDescription = "Sensors") },
+                        label = { Text("Sensors") }
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == 1,
+                        onClick = { currentTab = 1 },
+                        icon = { Icon(Icons.Default.DateRange, contentDescription = "Schedules") },
+                        label = { Text("Schedules") }
+                    )
+                }
+            }
         }
     ) { padding ->
         Box(
@@ -96,26 +122,33 @@ fun DashboardScreen(
                     )
                 }
             } else {
-                // List View: All Sensors
-                Column {
-                    Text(
-                        text = "Smart Sensors",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                    
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(sensors) { sensor ->
-                            SensorCard(
-                                sensor = sensor,
-                                unit = tempUnit,
-                                onClick = { selectedSensor = sensor }
+                when (currentTab) {
+                    0 -> {
+                        // List View: All Sensors
+                        Column {
+                            Text(
+                                text = "Smart Sensors",
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier.padding(16.dp)
                             )
+                            
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(sensors, key = { it.id }) { sensor ->
+                                    SensorCard(
+                                        sensor = sensor,
+                                        unit = tempUnit,
+                                        onClick = { selectedSensor = sensor }
+                                    )
+                                }
+                            }
                         }
+                    }
+                    1 -> {
+                        SchedulesScreen(sensorRepository = sensorRepository)
                     }
                 }
             }
@@ -181,7 +214,7 @@ fun SensorCard(sensor: TempSensor, unit: TempUnit, onClick: () -> Unit) {
             
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Last updated: ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(sensor.lastUpdated))}",
+                text = "Last updated: ${timeFormatter.format(java.util.Date(sensor.lastUpdated))}",
                 style = MaterialTheme.typography.labelSmall,
                 color = if (isStale) Color(0xFFF57C00) else MaterialTheme.colorScheme.outline, // Orange if stale
                 modifier = Modifier.align(Alignment.End)
