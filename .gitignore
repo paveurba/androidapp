@@ -12,6 +12,7 @@ bin/
 
 # Local configuration
 local.properties
+google-services.json
 .DS_Store
 
 # Temporary files

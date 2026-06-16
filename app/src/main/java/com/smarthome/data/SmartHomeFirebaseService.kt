@@ -1,34 +1,82 @@
 package com.smarthome.data
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.google.firebase.messaging.FirebaseMessagingService
+import com.google.firebase.messaging.RemoteMessage
+import com.smarthome.MainActivity
+import com.smarthome.R
 
 /**
- * Boilerplate for Firebase Cloud Messaging service.
- * In a real app with Firebase dependencies, this would extend FirebaseMessagingService.
+ * Real Firebase Messaging Service implementation.
+ * Note: Requires 'com.google.firebase:firebase-messaging' dependency in build.gradle.
  */
-class SmartHomeFirebaseService {
+class SmartHomeFirebaseService : FirebaseMessagingService() {
 
-    /**
-     * This is how you get the token in a real app:
-     * FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-     *     if (!task.isSuccessful) return@addOnCompleteListener
-     *     val token = task.result
-     *     sendTokenToServer(token)
-     * }
-     */
-    fun getAndSendToken(userId: String) {
-        // Mocking the token retrieval
-        val mockToken = "fcm_token_${userId}_${System.currentTimeMillis()}"
-        Log.d("FCM", "Generated Device Token: $mockToken")
+    override fun onNewToken(token: String) {
+        super.onNewToken(token)
+        Log.d("FCM", "New token generated: $token")
+        sendTokenToServer(token)
+    }
+
+    override fun onMessageReceived(remoteMessage: RemoteMessage) {
+        super.onMessageReceived(remoteMessage)
         
-        // This is the call to your server
-        sendTokenToServer(mockToken)
+        Log.d("FCM", "From: ${remoteMessage.from}")
+
+        // Handle notification payload
+        remoteMessage.notification?.let {
+            showNotification(it.title ?: "Smart Home Alert", it.body ?: "")
+        }
+
+        // Handle data payload (this is where you'd save to your local repository)
+        if (remoteMessage.data.isNotEmpty()) {
+            Log.d("FCM", "Message data payload: " + remoteMessage.data)
+            // You can broadcast this or save to repository here
+        }
     }
 
     private fun sendTokenToServer(token: String) {
-        // Logic to POST the token to your server:
-        // https://your-api.com/register-device
-        // body: { "token": "...", "platform": "android" }
-        Log.d("FCM", "Token sent to server: $token")
+        // TODO: Implement your API call here
+        // myApi.registerToken(token)
+        Log.d("FCM", "Sending token to server...")
+    }
+
+    private fun showNotification(title: String, message: String) {
+        val channelId = "smart_home_alerts"
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Smart Home Alerts",
+                NotificationManager.IMPORTANCE_DEFAULT
+            )
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notificationBuilder = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_info) // Replace with your app icon
+            .setContentTitle(title)
+            .setContentText(message)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+
+        notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
     }
 }
