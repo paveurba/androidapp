@@ -19,7 +19,8 @@ sealed class Screen(val route: String) {
 fun AppNavigation(
     authPreferences: AuthPreferences,
     authRepository: AuthRepository,
-    sensorRepository: com.smarthome.data.SensorRepository
+    sensorRepository: com.smarthome.data.SensorRepository,
+    notificationRepository: com.smarthome.data.NotificationRepository
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
@@ -53,6 +54,7 @@ fun AppNavigation(
         composable(Screen.Dashboard.route) {
             DashboardScreen(
                 sensorRepository = sensorRepository,
+                notificationRepository = notificationRepository,
                 onLogout = {
                     scope.launch {
                         authPreferences.setLoggedIn(false)

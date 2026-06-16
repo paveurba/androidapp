@@ -8,14 +8,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.smarthome.data.NotificationRepository
 import com.smarthome.data.SensorRepository
 import com.smarthome.data.TempSensor
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class TempUnit { CELSIUS, FAHRENHEIT }
@@ -29,9 +32,13 @@ private val timeFormatter = java.text.SimpleDateFormat("HH:mm:ss", java.util.Loc
 @Composable
 fun DashboardScreen(
     sensorRepository: SensorRepository,
+    notificationRepository: NotificationRepository,
     onLogout: () -> Unit
 ) {
     val sensors by sensorRepository.getSensors().collectAsState(initial = emptyList())
+    val notifications by notificationRepository.getNotifications().collectAsState(initial = emptyList())
+    val unreadCount = notifications.count { !it.isRead }
+    
     var selectedSensor by remember { mutableStateOf<TempSensor?>(null) }
     var tempUnit by remember { mutableStateOf(TempUnit.CELSIUS) }
     var currentTab by remember { mutableIntStateOf(0) }
@@ -44,6 +51,15 @@ fun DashboardScreen(
         }
     }
 
+    // Simulate an incoming "Push Notification" from server
+    LaunchedEffect(Unit) {
+        delay(15000) // 15 seconds after app start
+        notificationRepository.addNotification(
+            "Energy Report", 
+            "Your weekly energy consumption decreased by 12%!"
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -51,7 +67,8 @@ fun DashboardScreen(
                     Text(when(currentTab) {
                         0 -> "Smart Home"
                         1 -> "Schedules"
-                        else -> "Relays"
+                        2 -> "Relays"
+                        else -> "Notifications"
                     }) 
                 },
                 actions = {
@@ -88,6 +105,22 @@ fun DashboardScreen(
                         onClick = { currentTab = 2 },
                         icon = { Icon(Icons.Default.List, contentDescription = "Relays") },
                         label = { Text("Relays") }
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == 3,
+                        onClick = { currentTab = 3 },
+                        icon = {
+                            BadgedBox(
+                                badge = {
+                                    if (unreadCount > 0) {
+                                        Badge { Text(unreadCount.toString()) }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                            }
+                        },
+                        label = { Text("Alerts") }
                     )
                 }
             }
@@ -165,6 +198,9 @@ fun DashboardScreen(
                     }
                     2 -> {
                         RelaysScreen(sensorRepository = sensorRepository)
+                    }
+                    3 -> {
+                        NotificationsScreen(notificationRepository = notificationRepository)
                     }
                 }
             }

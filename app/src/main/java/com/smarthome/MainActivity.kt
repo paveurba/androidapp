@@ -9,7 +9,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.smarthome.data.AuthPreferences
 import com.smarthome.data.MockAuthRepository
+import com.smarthome.data.MockNotificationRepository
 import com.smarthome.data.MockSensorRepository
+import com.smarthome.data.SmartHomeFirebaseService
 import com.smarthome.navigation.AppNavigation
 
 class MainActivity : ComponentActivity() {
@@ -19,6 +21,11 @@ class MainActivity : ComponentActivity() {
         val authPreferences = AuthPreferences(applicationContext)
         val authRepository = MockAuthRepository()
         val sensorRepository = MockSensorRepository()
+        val notificationRepository = MockNotificationRepository()
+
+        // Initialize Firebase service and register token
+        val firebaseService = SmartHomeFirebaseService()
+        firebaseService.getAndSendToken("user_123")
         
         setContent {
             MaterialTheme {
@@ -29,7 +36,8 @@ class MainActivity : ComponentActivity() {
                     AppNavigation(
                         authPreferences = authPreferences,
                         authRepository = authRepository,
-                        sensorRepository = sensorRepository
+                        sensorRepository = sensorRepository,
+                        notificationRepository = notificationRepository
                     )
                 }
             }
