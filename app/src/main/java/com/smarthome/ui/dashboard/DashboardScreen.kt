@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,7 +47,13 @@ fun DashboardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (currentTab == 0) "Smart Home" else "Schedules") },
+                title = { 
+                    Text(when(currentTab) {
+                        0 -> "Smart Home"
+                        1 -> "Schedules"
+                        else -> "Relays"
+                    }) 
+                },
                 actions = {
                     if (currentTab == 0) {
                         TextButton(onClick = {
@@ -75,6 +82,12 @@ fun DashboardScreen(
                         onClick = { currentTab = 1 },
                         icon = { Icon(Icons.Default.DateRange, contentDescription = "Schedules") },
                         label = { Text("Schedules") }
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == 2,
+                        onClick = { currentTab = 2 },
+                        icon = { Icon(Icons.Default.List, contentDescription = "Relays") },
+                        label = { Text("Relays") }
                     )
                 }
             }
@@ -149,6 +162,9 @@ fun DashboardScreen(
                     }
                     1 -> {
                         SchedulesScreen(sensorRepository = sensorRepository)
+                    }
+                    2 -> {
+                        RelaysScreen(sensorRepository = sensorRepository)
                     }
                 }
             }
