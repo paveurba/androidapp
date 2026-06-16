@@ -24,11 +24,11 @@ import kotlin.math.sin
 @Composable
 fun ThermostatControl(
     currentTemp: Float,
-    targetTemp: Float,
-    onTargetTempChanged: (Float) -> Unit,
+    setTemp: Float,
+    onSetTempChanged: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var tempValue by remember { mutableStateOf(targetTemp) }
+    var tempValue by remember { mutableStateOf(setTemp) }
     val animatedTemp by animateFloatAsState(targetValue = tempValue)
 
     Box(
@@ -50,7 +50,7 @@ fun ThermostatControl(
                         // Map 0-360 to 15-30
                         val newTemp = 15f + (normalizedAngle / 360f) * 15f
                         tempValue = newTemp.coerceIn(15f, 30f)
-                        onTargetTempChanged(tempValue)
+                        onSetTempChanged(tempValue)
                     }
                 }
         ) {
@@ -102,12 +102,12 @@ fun ThermostatControl(
                 color = Color(0xFFEF5350)
             )
             Text(
-                text = "Target",
+                text = "Set",
                 style = MaterialTheme.typography.labelMedium
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Current: ${currentTemp}°C",
+                text = "Current: ${currentTemp.toInt()}°C",
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color.Gray
             )

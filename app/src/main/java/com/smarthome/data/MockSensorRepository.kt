@@ -8,19 +8,23 @@ data class TempSensor(
     val id: String,
     val name: String,
     val currentTemp: Float,
-    val targetTemp: Float
+    val setTemp: Float,
+    val humidity: Float,
+    val batteryLevel: Int,
+    val linkQuality: Int,
+    val lastUpdated: Long
 )
 
 interface SensorRepository {
     fun getSensors(): Flow<List<TempSensor>>
-    suspend fun updateTargetTemp(sensorId: String, newTemp: Float)
+    suspend fun updateSetTemp(sensorId: String, newTemp: Float)
 }
 
 class MockSensorRepository : SensorRepository {
     private val sensors = mutableListOf(
-        TempSensor("1", "Living Room", 22.5f, 22.0f),
-        TempSensor("2", "Bedroom", 20.1f, 19.0f),
-        TempSensor("3", "Kitchen", 24.0f, 23.5f)
+        TempSensor("1", "Living Room", 22.5f, 22.0f, 45.0f, 85, 200, System.currentTimeMillis()),
+        TempSensor("2", "Bedroom", 20.1f, 19.0f, 50.0f, 92, 180, System.currentTimeMillis() - 60000),
+        TempSensor("3", "Kitchen", 24.0f, 23.5f, 55.0f, 45, 150, System.currentTimeMillis() - 120000)
     )
 
     override fun getSensors(): Flow<List<TempSensor>> = flow {
@@ -30,11 +34,11 @@ class MockSensorRepository : SensorRepository {
         }
     }
 
-    override suspend fun updateTargetTemp(sensorId: String, newTemp: Float) {
+    override suspend fun updateSetTemp(sensorId: String, newTemp: Float) {
         delay(500) // Simulate network delay
         val index = sensors.indexOfFirst { it.id == sensorId }
         if (index != -1) {
-            sensors[index] = sensors[index].copy(targetTemp = newTemp)
+            sensors[index] = sensors[index].copy(setTemp = newTemp)
         }
     }
 }

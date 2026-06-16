@@ -73,10 +73,10 @@ fun DashboardScreen(
                     
                     ThermostatControl(
                         currentTemp = selectedSensor!!.currentTemp,
-                        targetTemp = selectedSensor!!.targetTemp,
-                        onTargetTempChanged = { newTemp ->
+                        setTemp = selectedSensor!!.setTemp,
+                        onSetTempChanged = { newTemp ->
                             scope.launch {
-                                sensorRepository.updateTargetTemp(selectedSensor!!.id, newTemp)
+                                sensorRepository.updateSetTemp(selectedSensor!!.id, newTemp)
                             }
                         }
                     )
@@ -85,7 +85,7 @@ fun DashboardScreen(
                 // List View: All Sensors
                 Column {
                     Text(
-                        text = "Temperature Sensors",
+                        text = "Smart Sensors",
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(16.dp)
                     )
@@ -113,22 +113,55 @@ fun SensorCard(sensor: TempSensor, onClick: () -> Unit) {
             .clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(text = sensor.name, style = MaterialTheme.typography.titleMedium)
-                Text(text = "Target: ${sensor.targetTemp}°C", style = MaterialTheme.typography.bodySmall)
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(text = sensor.name, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = "Set: ${"%.1f".format(sensor.setTemp)}°C",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
+                Text(
+                    text = "${"%.1f".format(sensor.currentTemp)}°C",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                SensorInfoItem(label = "Humidity", value = "${sensor.humidity.toInt()}%")
+                SensorInfoItem(label = "Battery", value = "${sensor.batteryLevel}%")
+                SensorInfoItem(label = "Link", value = "${sensor.linkQuality}")
+            }
+            
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${sensor.currentTemp}°C",
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.primary
+                text = "Last updated: ${java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(sensor.lastUpdated))}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.align(Alignment.End)
             )
         }
+    }
+}
+
+@Composable
+fun SensorInfoItem(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+        Text(text = value, style = MaterialTheme.typography.bodySmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
     }
 }
