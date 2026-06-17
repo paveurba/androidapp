@@ -23,9 +23,14 @@ class MainActivity : ComponentActivity() {
         val sensorRepository = MockSensorRepository()
         val notificationRepository = MockNotificationRepository()
 
-        // Initialize Firebase service and register token
-        val firebaseService = SmartHomeFirebaseService()
-        firebaseService.getAndSendToken("user_123")
+        // Retrieve and log FCM token (real API)
+        com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                val token = task.result
+                android.util.Log.d("FCM", "Device Token: $token")
+                // Here you would send the token to your server
+            }
+        }
         
         setContent {
             MaterialTheme {

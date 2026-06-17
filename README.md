@@ -34,7 +34,10 @@ The project is currently a fully functional prototype using reactive mock data.
 - **Performance Optimized**: 
     - Stable keys for `LazyColumn` items to ensure smooth scrolling.
     - Optimized object allocation (e.g., pre-allocated Date formatters) to prevent UI freezing/jank.
-- **Push Notification Ready**: Includes boilerplate for FCM (Firebase Cloud Messaging) token registration and "server-push" simulation.
+- **Production-Ready Push Notifications**: 
+    - Full **Firebase Cloud Messaging (FCM)** integration.
+    - Configured `SmartHomeFirebaseService` for background alert handling.
+    - Automatic device token registration logic.
 
 ---
 
@@ -51,32 +54,32 @@ The project is currently a fully functional prototype using reactive mock data.
    git clone <repository-url>
    cd androidapp
    ```
-2. **Open in Android Studio**:
+2. **Firebase Configuration**:
+   - The project is configured to use the package name `com.smarthome.lv`.
+   - Ensure your `app/google-services.json` matches this package name.
+3. **Open in Android Studio**:
    Select `File > Open` and navigate to the project root.
-3. **Build the project**:
+4. **Build the project**:
    Use the terminal in Android Studio or run:
    ```bash
    ./gradlew assembleDebug
    ```
-4. **Run on Device/Emulator**:
-   Click the **Run** button (Green Play Icon) in Android Studio or use:
-   ```bash
-   ./gradlew installDebug
-   ```
+5. **Run on Device/Emulator**:
+   Click the **Run** button (Green Play Icon) in Android Studio.
 
 ---
 
 ## 📁 Project Structure
 
-- `com.smarthome.data`: Data models, Repositories, and Mock services.
+- `com.smarthome.data`: Data models, Repositories, and the `SmartHomeFirebaseService`.
 - `com.smarthome.ui.dashboard`: Main feature screens (Sensors, Schedules, Relays, Notifications).
 - `com.smarthome.navigation`: App routing and Tab navigation logic.
-- `com.smarthome.MainActivity`: App entry point and service initialization.
+- `com.smarthome.MainActivity`: App entry point and FCM token retrieval.
 
 ---
 
-## 📡 Push Notification Setup (Production)
-To move from the current simulation to real production push notifications:
-1. Create a project in the [Firebase Console](https://console.firebase.google.com/).
-2. Download `google-services.json` and place it in the `app/` directory.
-3. Update the `SmartHomeFirebaseService.kt` to point to your backend API for token registration.
+## 📡 Sending Push Notifications
+To send a real notification to the app:
+1. Locate the **Device Token** in the Logcat (filter by `FCM`).
+2. Use the Firebase Console or a cURL command to send a message to that token.
+3. The app will receive and display the notification even if it's in the background.
