@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun LoginScreen(
     authRepository: AuthRepository,
-    onLoginSuccess: () -> Unit
+    onLoginSuccess: (serialNumber: String, otp: String) -> Unit
 ) {
     var isLogin by remember { mutableStateOf(true) }
     var serialNumber by remember { mutableStateOf("") }
@@ -84,7 +84,7 @@ fun LoginScreen(
                     
                     isLoading = false
                     if (result.isSuccess) {
-                        onLoginSuccess()
+                        onLoginSuccess(serialNumber, otp)
                     } else {
                         errorMessage = result.exceptionOrNull()?.message ?: "An error occurred"
                     }

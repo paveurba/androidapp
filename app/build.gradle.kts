@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -14,6 +16,16 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
+        val envFile = rootProject.file(".env")
+        if (envFile.exists()) {
+            val properties = Properties()
+            properties.load(envFile.inputStream())
+            val apiUrl = properties.getProperty("API_BASE_URL") ?: "http://localhost:8000/api/"
+            buildConfigField("String", "API_BASE_URL", "\"$apiUrl\"")
+        } else {
+            buildConfigField("String", "API_BASE_URL", "\"http://localhost:8000/api/\"")
+        }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -39,6 +51,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.8"
@@ -61,6 +74,12 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
+
+    // Networking
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:32.7.2"))

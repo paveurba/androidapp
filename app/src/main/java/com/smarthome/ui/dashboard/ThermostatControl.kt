@@ -15,10 +15,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.round
 import kotlin.math.sin
 
 @Composable
@@ -29,8 +29,9 @@ fun ThermostatControl(
     onSetTempChanged: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Internally we keep everything in Celsius to match the repository
-    var tempValue by remember(setTemp) { mutableStateOf(setTemp) }
+    // Round setTemp to nearest 0.5 to keep the dial stable
+    val roundedSetTemp = remember(setTemp) { (round(setTemp * 2) / 2f) }
+    var tempValue by remember(roundedSetTemp) { mutableStateOf(roundedSetTemp) }
     val animatedTemp by animateFloatAsState(targetValue = tempValue, label = "tempAnimation")
 
     val minTemp = 0f
@@ -43,7 +44,7 @@ fun ThermostatControl(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(setTemp) {
+                .pointerInput(Unit) {
                     detectDragGestures(
                         onDrag = { change, _ ->
                             val touchX = change.position.x - size.width / 2
@@ -52,8 +53,10 @@ fun ThermostatControl(
                             var normalizedAngle = (angle * 180 / PI).toFloat() + 90f
                             if (normalizedAngle < 0) normalizedAngle += 360f
                             
-                            val newTemp = minTemp + (normalizedAngle / 360f) * (maxTemp - minTemp)
-                            tempValue = newTemp.coerceIn(minTemp, maxTemp)
+                            val rawTemp = minTemp + (normalizedAngle / 360f) * (maxTemp - minTemp)
+                            // Round to nearest 0.5 step for smoother but controlled selection
+                            val steppedTemp = (round(rawTemp * 2) / 2f).coerceIn(minTemp, maxTemp)
+                            tempValue = steppedTemp
                         },
                         onDragEnd = {
                             onSetTempChanged(tempValue)
@@ -101,7 +104,7 @@ fun ThermostatControl(
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "${animatedTemp.toUnit(unit).toInt()}${unit.symbol()}",
+                text = "${"%.1f".format(animatedTemp.toUnit(unit))}${unit.symbol()}",
                 style = MaterialTheme.typography.displayMedium,
                 color = Color(0xFFEF5350)
             )
@@ -111,7 +114,7 @@ fun ThermostatControl(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Current: ${currentTemp.toUnit(unit).toInt()}${unit.symbol()}",
+                text = "Current: ${"%.1f".format(currentTemp.toUnit(unit))}${unit.symbol()}",
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color.Gray
             )

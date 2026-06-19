@@ -41,8 +41,9 @@ fun AppNavigation(
         composable(Screen.Auth.route) {
             LoginScreen(
                 authRepository = authRepository,
-                onLoginSuccess = {
+                onLoginSuccess = { serialNumber, otp ->
                     scope.launch {
+                        authPreferences.saveCredentials(serialNumber, otp)
                         authPreferences.setLoggedIn(true)
                         navController.navigate(Screen.Dashboard.route) {
                             popUpTo(Screen.Auth.route) { inclusive = true }
@@ -57,7 +58,7 @@ fun AppNavigation(
                 notificationRepository = notificationRepository,
                 onLogout = {
                     scope.launch {
-                        authPreferences.setLoggedIn(false)
+                        authPreferences.clear()
                         navController.navigate(Screen.Auth.route) {
                             popUpTo(Screen.Dashboard.route) { inclusive = true }
                         }
