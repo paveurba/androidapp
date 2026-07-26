@@ -124,13 +124,16 @@ adb shell am start -n com.smarthome.lv/com.smarthome.MainActivity
    git clone <repository-url>
    cd androidapp
    ```
-2. **Firebase Configuration**:
+2. **Configure Environment Variables**:
+   - Copy `.env.example` to `.env`:
+     ```bash
+     cp .env.example .env
+     ```
+3. **Firebase Configuration**:
    - Package name: `com.smarthome.lv`.
-   - Ensure `app/google-services.json` matches this package name.
-3. **Configure Base API URL**:
-   - `.env` file in project root sets default base URL:
-     ```env
-     API_BASE_URL=http://10.0.2.2:8000/api/
+   - Copy `app/google-services.json.example` to `app/google-services.json` and insert your Firebase credentials:
+     ```bash
+     cp app/google-services.json.example app/google-services.json
      ```
 4. **Build & Run**:
    ```bash

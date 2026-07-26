@@ -10,15 +10,21 @@ bin/
 *.iml
 .vscode/
 
-# Local configuration
+# Local configuration & secrets
 local.properties
+.env
+*.env
+!.env.example
 google-services.json
+**/google-services.json
+!**/google-services.json.example
 .DS_Store
 
 # Temporary files
 *.swp
 *.log
 *.tmp
+*.hprof
 
 # Captures the "Task" file if it was temporary
 Task
