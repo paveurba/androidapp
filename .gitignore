@@ -12,6 +12,9 @@ bin/
 
 # Local configuration & secrets
 local.properties
+key.properties
+*.jks
+*.keystore
 .env
 *.env
 !.env.example
