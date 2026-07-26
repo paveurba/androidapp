@@ -58,15 +58,6 @@ fun DashboardScreen(
         }
     }
 
-    // Simulate an incoming "Push Notification" from server
-    LaunchedEffect(Unit) {
-        delay(15000) // 15 seconds after app start
-        notificationRepository.addNotification(
-            "Energy Report", 
-            "Your weekly energy consumption decreased by 12%!"
-        )
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(

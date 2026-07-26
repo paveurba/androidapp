@@ -97,10 +97,61 @@ class ProductionSensorRepository(
                     try {
                         val json = JSONObject(text)
                         val event = json.optString("event")
-                        if (event == "refresh_sensors") {
-                            android.util.Log.i("SocketEvent", "Refreshing sensor list from socket event")
-                            scope.launch {
-                                fetchSensors()
+                        val data = json.optJSONObject("data")
+
+                        when (event) {
+                            "refresh_sensors" -> {
+                                android.util.Log.i("SocketEvent", "Refreshing sensor list from socket event")
+                                if (data != null && data.has("sensorId") && data.has("setTemp")) {
+                                    val sensorId = data.getString("sensorId")
+                                    val newSetTemp = data.getDouble("setTemp").toFloat()
+                                    val currentSensors = _sensors.value.toMutableList()
+                                    val idx = currentSensors.indexOfFirst { it.id == sensorId }
+                                    if (idx != -1) {
+                                        currentSensors[idx] = currentSensors[idx].copy(setTemp = newSetTemp)
+                                        _sensors.value = currentSensors
+                                    }
+                                }
+                                scope.launch { fetchSensors() }
+                            }
+                            "refresh_relays" -> {
+                                android.util.Log.i("SocketEvent", "Refreshing relays list from socket event")
+                                if (data != null && data.has("relayId") && data.has("switchId")) {
+                                    val relayId = data.getString("relayId")
+                                    val switchId = data.getString("switchId")
+                                    val currentRelays = _relays.value.toMutableList()
+                                    val relayIndex = currentRelays.indexOfFirst { it.id == relayId }
+                                    if (relayIndex != -1) {
+                                        val relay = currentRelays[relayIndex]
+                                        val switches = relay.switches.toMutableList()
+                                        val switchIndex = switches.indexOfFirst { it.id == switchId }
+                                        if (switchIndex != -1) {
+                                            val isOn = if (data.has("isOn")) data.getBoolean("isOn") else !switches[switchIndex].isOn
+                                            switches[switchIndex] = switches[switchIndex].copy(isOn = isOn)
+                                            currentRelays[relayIndex] = relay.copy(switches = switches)
+                                            _relays.value = currentRelays
+                                        }
+                                    }
+                                }
+                                scope.launch { fetchRelays() }
+                            }
+                            "refresh_schedules" -> {
+                                android.util.Log.i("SocketEvent", "Refreshing schedules list from socket event")
+                                scope.launch { fetchSchedules() }
+                            }
+                            "refresh_notifications" -> {
+                                android.util.Log.i("SocketEvent", "Refreshing notifications list from socket event")
+                                scope.launch {
+                                    fetchSensors()
+                                    fetchRelays()
+                                }
+                            }
+                            "refresh_all" -> {
+                                scope.launch {
+                                    fetchSensors()
+                                    fetchRelays()
+                                    fetchSchedules()
+                                }
                             }
                         }
                     } catch (e: Exception) {
