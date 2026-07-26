@@ -26,6 +26,7 @@ class AuthPreferences(private val context: Context) {
         val FCM_TOKEN = stringPreferencesKey("fcm_token")
         val IS_CUSTOM_SERVER_ENABLED = booleanPreferencesKey("is_custom_server_enabled")
         val CUSTOM_SERVER_URL = stringPreferencesKey("custom_server_url")
+        val CUSTOM_WEBSOCKET_URL = stringPreferencesKey("custom_websocket_url")
     }
 
     val isLoggedIn: Flow<Boolean> = context.dataStore.data
@@ -58,12 +59,21 @@ class AuthPreferences(private val context: Context) {
             preferences[CUSTOM_SERVER_URL]
         }
 
+    val customWebSocketUrl: Flow<String?> = context.dataStore.data
+        .map { preferences ->
+            preferences[CUSTOM_WEBSOCKET_URL]
+        }
+
     @Volatile
     var cachedIsCustomServerEnabled: Boolean = false
         private set
 
     @Volatile
     var cachedCustomServerUrl: String? = null
+        private set
+
+    @Volatile
+    var cachedCustomWebSocketUrl: String? = null
         private set
 
     init {
@@ -75,6 +85,11 @@ class AuthPreferences(private val context: Context) {
         scope.launch {
             customServerUrl.collect { url ->
                 cachedCustomServerUrl = url
+            }
+        }
+        scope.launch {
+            customWebSocketUrl.collect { url ->
+                cachedCustomWebSocketUrl = url
             }
         }
     }
@@ -121,6 +136,14 @@ class AuthPreferences(private val context: Context) {
         }
     }
 
+    suspend fun setCustomWebSocketUrl(url: String) {
+        val trimmed = url.trim()
+        cachedCustomWebSocketUrl = trimmed.ifBlank { null }
+        context.dataStore.edit { preferences ->
+            preferences[CUSTOM_WEBSOCKET_URL] = trimmed
+        }
+    }
+
     fun getEffectiveBaseUrl(): String {
         if (cachedIsCustomServerEnabled) {
             val custom = cachedCustomServerUrl
@@ -129,6 +152,45 @@ class AuthPreferences(private val context: Context) {
             }
         }
         return BuildConfig.API_BASE_URL
+    }
+
+    fun getEffectiveWebSocketUrl(serialNumber: String = ""): String {
+        if (cachedIsCustomServerEnabled) {
+            val customWs = cachedCustomWebSocketUrl
+            if (!customWs.isNullOrBlank()) {
+                return formatWebSocketUrl(customWs, serialNumber)
+            }
+        }
+
+        // Auto-derive from effective API base URL
+        val effectiveApiUrl = getEffectiveBaseUrl()
+        val host = try {
+            val uri = java.net.URI(effectiveApiUrl)
+            uri.host ?: "10.0.2.2"
+        } catch (e: Exception) {
+            "10.0.2.2"
+        }
+        val scheme = if (effectiveApiUrl.startsWith("https://")) "wss" else "ws"
+        return formatWebSocketUrl("$scheme://$host:8080/", serialNumber)
+    }
+
+    private fun formatWebSocketUrl(url: String, serialNumber: String): String {
+        var formatted = url.trim()
+        if (!formatted.startsWith("ws://") && !formatted.startsWith("wss://")) {
+            if (formatted.startsWith("http://")) {
+                formatted = "ws://" + formatted.substring(7)
+            } else if (formatted.startsWith("https://")) {
+                formatted = "wss://" + formatted.substring(8)
+            } else {
+                formatted = "ws://$formatted"
+            }
+        }
+
+        if (serialNumber.isNotBlank() && !formatted.contains("clientId=")) {
+            val separator = if (formatted.contains("?")) "&" else "?"
+            formatted = "$formatted${separator}clientId=$serialNumber"
+        }
+        return formatted
     }
 
     suspend fun clear() {

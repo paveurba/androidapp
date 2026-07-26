@@ -20,24 +20,28 @@ fun CustomApiServerDialog(
     val scope = rememberCoroutineScope()
     val isCustomEnabled by authPreferences.isCustomServerEnabled.collectAsState(initial = false)
     val customUrlPreference by authPreferences.customServerUrl.collectAsState(initial = null)
+    val customWsPreference by authPreferences.customWebSocketUrl.collectAsState(initial = null)
 
     var enabledState by remember(isCustomEnabled) { mutableStateOf(isCustomEnabled) }
     var inputUrl by remember(customUrlPreference) { 
         mutableStateOf(customUrlPreference ?: BuildConfig.API_BASE_URL) 
+    }
+    var inputWsUrl by remember(customWsPreference) {
+        mutableStateOf(customWsPreference ?: "")
     }
     var validationError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Settings, contentDescription = "Custom API Server Settings") },
-        title = { Text("Custom API Server Mode") },
+        title = { Text("Custom API & WebSocket Server") },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Configure a custom local endpoint or fallback server when offline or operating on a local network.",
+                    text = "Configure custom local HTTP & WebSocket endpoints when offline or operating on a local network.",
                     style = MaterialTheme.typography.bodyMedium
                 )
 
@@ -47,7 +51,7 @@ fun CustomApiServerDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Enable Custom API Mode",
+                        text = "Enable Custom Server Mode",
                         style = MaterialTheme.typography.bodyLarge
                     )
                     Switch(
@@ -73,6 +77,19 @@ fun CustomApiServerDialog(
                     isError = validationError != null
                 )
 
+                OutlinedTextField(
+                    value = inputWsUrl,
+                    onValueChange = { 
+                        inputWsUrl = it 
+                    },
+                    label = { Text("Custom WebSocket URL (Optional)") },
+                    placeholder = { Text("ws://192.168.1.100:8080/") },
+                    supportingText = { Text("Leave blank to auto-derive from API Base URL") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = enabledState
+                )
+
                 validationError?.let { err ->
                     Text(
                         text = err,
@@ -88,10 +105,11 @@ fun CustomApiServerDialog(
                     TextButton(
                         onClick = {
                             inputUrl = BuildConfig.API_BASE_URL
+                            inputWsUrl = ""
                         },
                         enabled = enabledState
                     ) {
-                        Text("Reset to Default URL")
+                        Text("Reset to Defaults")
                     }
                 }
 
@@ -102,16 +120,26 @@ fun CustomApiServerDialog(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = if (enabledState) "Mode: Custom API Server" else "Mode: Default (.env Base URL)",
+                            text = if (enabledState) "Mode: Custom Server Active" else "Mode: Default (.env Base URL)",
                             style = MaterialTheme.typography.labelLarge,
                             color = if (enabledState) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Active Endpoint:\n" + if (enabledState) {
+                            text = "HTTP API:\n" + if (enabledState) {
                                 inputUrl.ifBlank { BuildConfig.API_BASE_URL }
                             } else {
                                 BuildConfig.API_BASE_URL
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (enabledState) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "WebSocket:\n" + if (enabledState) {
+                                if (inputWsUrl.isNotBlank()) inputWsUrl else "Auto-derived (port 8080)"
+                            } else {
+                                "Default (ws://...:8080)"
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = if (enabledState) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
@@ -129,6 +157,7 @@ fun CustomApiServerDialog(
                     }
                     scope.launch {
                         authPreferences.setCustomServerUrl(inputUrl)
+                        authPreferences.setCustomWebSocketUrl(inputWsUrl)
                         authPreferences.setCustomServerEnabled(enabledState)
                         onDismiss()
                     }

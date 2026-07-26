@@ -63,8 +63,9 @@ class ProductionSensorRepository(
             combine(
                 authPreferences.serialNumber,
                 authPreferences.isCustomServerEnabled,
-                authPreferences.customServerUrl
-            ) { serialNumber, _, _ -> serialNumber }
+                authPreferences.customServerUrl,
+                authPreferences.customWebSocketUrl
+            ) { serialNumber, _, _, _ -> serialNumber }
             .collect { serialNumber ->
                 disconnectWebSocket()
                 if (!serialNumber.isNullOrBlank()) {
@@ -80,14 +81,7 @@ class ProductionSensorRepository(
         isConnecting = true
 
         scope.launch {
-            val host = try {
-                val effectiveUrl = authPreferences.getEffectiveBaseUrl()
-                val uri = java.net.URI(effectiveUrl)
-                uri.host ?: "10.0.2.2"
-            } catch (e: Exception) {
-                "10.0.2.2"
-            }
-            val wsUrl = "ws://$host:8080/?clientId=$serialNumber"
+            val wsUrl = authPreferences.getEffectiveWebSocketUrl(serialNumber)
             android.util.Log.d("SocketEvent", "Connecting to WebSocket: $wsUrl")
 
             val request = Request.Builder().url(wsUrl).build()

@@ -29,11 +29,12 @@ A modern, reactive Smart Home management application built with **Jetpack Compos
 - **Unread Badges**: Real-time badge count on the navigation bar.
 - **Read/Unread States**: Visual distinction between new and viewed alerts.
 
-### 5. Custom API Server Mode (Local / Offline Endpoint)
+### 5. Custom API & WebSocket Server Mode (Local / Offline Endpoint)
 - **Dynamic Endpoint Switch**: Switch from the default `.env` API URL (`BuildConfig.API_BASE_URL`) to a custom local server endpoint (e.g. `http://192.168.1.100:8000/api/`) directly from the UI.
+- **Custom & Auto-Derived WebSocket Endpoint**: The WebSocket URL automatically adapts to the selected server host (e.g., `ws://192.168.1.100:8080/?clientId=...`). Optionally, users can specify an explicit custom WebSocket URL (e.g., `ws://192.168.1.100:9090/`).
 - **Accessible Everywhere**: Available via the settings icon on both the **Login Screen** and **Dashboard TopAppBar**.
-- **Persistent Preferences**: Endpoint and mode configuration are stored securely in `DataStore` preferences and saved across logouts and app restarts.
-- **Automatic Interceptor & WebSocket Switch**: Dynamically rewrites OkHttp request URLs and reconnects WebSocket listeners to the selected server host without requiring app restart.
+- **Persistent Preferences**: API and WebSocket endpoint configurations are stored securely in `DataStore` preferences and saved across logouts and app restarts.
+- **Automatic Interceptor & WebSocket Switch**: Dynamically rewrites OkHttp request URLs and automatically reconnects real-time WebSocket listeners whenever configuration changes.
 
 ---
 
