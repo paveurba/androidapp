@@ -2,6 +2,9 @@ package com.smarthome.ui.dashboard
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,27 +24,52 @@ fun RelaysScreen(
     val relays by sensorRepository.getRelays().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = "Relay Controllers",
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(16.dp)
-        )
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val isTablet = maxWidth >= 600.dp
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            items(relays, key = { it.id }) { relay ->
-                RelayCard(
-                    relay = relay,
-                    onSwitchToggle = { switchId ->
-                        scope.launch {
-                            sensorRepository.toggleRelaySwitch(relay.id, switchId)
-                        }
+        Column(modifier = Modifier.fillMaxSize()) {
+            Text(
+                text = "Relay Controllers",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(16.dp)
+            )
+
+            if (isTablet) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 340.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(relays, key = { it.id }) { relay ->
+                        RelayCard(
+                            relay = relay,
+                            onSwitchToggle = { switchId ->
+                                scope.launch {
+                                    sensorRepository.toggleRelaySwitch(relay.id, switchId)
+                                }
+                            }
+                        )
                     }
-                )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(relays, key = { it.id }) { relay ->
+                        RelayCard(
+                            relay = relay,
+                            onSwitchToggle = { switchId ->
+                                scope.launch {
+                                    sensorRepository.toggleRelaySwitch(relay.id, switchId)
+                                }
+                            }
+                        )
+                    }
+                }
             }
         }
     }

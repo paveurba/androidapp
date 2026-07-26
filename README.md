@@ -36,21 +36,35 @@ A modern, reactive Smart Home management application built with **Jetpack Compos
 - **Persistent Preferences**: API and WebSocket endpoint configurations are stored securely in `DataStore` preferences and saved across logouts and app restarts.
 - **Automatic Interceptor & WebSocket Switch**: Dynamically rewrites OkHttp request URLs and automatically reconnects real-time WebSocket listeners whenever configuration changes.
 
+### 6. Adaptive Tablet & Large Screen Optimizations
+- **Master-Detail Split View**: On tablets (`>= 600.dp` screen width), the Sensors tab displays a side-by-side split screen—Sensor list on the left pane (360dp) and live interactive Thermostat controls on the right pane.
+- **Adaptive Multi-Column Grids**: Relays and Device Schedules automatically format into 2 or 3 responsive grid columns on large screens instead of stretching cards excessively.
+- **Centered Form Containers**: Login and setting dialogs are constrained to an optimal width (`widthIn(max = 440.dp)`) centered on screen for ergonomics.
+
 ---
 
 ## 📱 Running on Emulators & Physical Phones
 
-### A. Launching the Pixel 8 Emulator
+### A. Launching the Pixel 8 & Pixel Tablet Emulators
 1. **From Terminal**:
-   ```bash
-   emulator -avd Pixel_8
-   ```
+   - **Pixel 8 (Phone)**:
+     ```bash
+     emulator -avd Pixel_8
+     ```
+   - **Pixel Tablet (Tablet)**:
+     ```bash
+     emulator -avd Pixel_Tablet
+     ```
 2. **From Android Studio**:
-   Open **Tools** $\rightarrow$ **Device Manager** $\rightarrow$ Click **Play** next to `Pixel_8`.
+   Open **Tools** $\rightarrow$ **Device Manager** $\rightarrow$ Click **Play** next to `Pixel_8` or `Pixel_Tablet`.
 
-3. **Creating a new Pixel Emulator AVD (if needed)**:
+3. **Creating a new AVD (if needed)**:
    ```bash
+   # Create Pixel 8 AVD
    avdmanager create avd -n Pixel_8 -k "system-images;android-34;google_apis;arm64-v8a" -d "pixel_8"
+
+   # Create Pixel Tablet AVD
+   avdmanager create avd -n Pixel_Tablet -k "system-images;android-34;google_apis;arm64-v8a" -d "pixel_tablet"
    ```
 
 ### B. Installing & Running on Emulator
@@ -78,11 +92,22 @@ adb shell am start -n com.smarthome.lv/com.smarthome.MainActivity
      ```bash
      ./gradlew installDebug
      ```
-   - **Or install pre-built APK via ADB**:
-     ```bash
-     ./gradlew assembleDebug
-     adb install -r app/build/outputs/apk/debug/app-debug.apk
-     ```
+
+### D. Testing the Tablet Adaptive Layout
+- **Method 1 (Rotate Running Phone Emulator to Landscape)**:
+  Rotate your running phone emulator to **Landscape mode** to increase width past `600dp` and trigger the tablet layout:
+  - Click the **Rotate** button on the emulator toolbar.
+  - Or run via terminal:
+    ```bash
+    adb shell settings put system accelerometer_rotation 0
+    adb shell settings put system user_rotation 1
+    ```
+- **Method 2 (Run Dedicated `Pixel_Tablet` Emulator)**:
+  ```bash
+  emulator -avd Pixel_Tablet
+  ./gradlew installDebug
+  adb shell am start -n com.smarthome.lv/com.smarthome.MainActivity
+  ```
 
 ---
 

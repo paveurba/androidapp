@@ -100,7 +100,10 @@ fun DashboardScreen(
             )
         },
         bottomBar = {
-            if (selectedSensor == null) {
+            val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+            val isTabletScreen = configuration.screenWidthDp >= 600
+
+            if (selectedSensor == null || isTabletScreen) {
                 NavigationBar {
                     NavigationBarItem(
                         selected = currentTab == 0,
@@ -140,81 +143,179 @@ fun DashboardScreen(
             }
         }
     ) { padding ->
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (selectedSensor != null) {
-                // Detail View: Thermostat Control
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        TextButton(
-                            onClick = { selectedSensor = null },
-                            modifier = Modifier.align(Alignment.CenterStart)
+            val isTablet = maxWidth >= 600.dp
+
+            if (isTablet && currentTab == 0) {
+                // Tablet Master-Detail Layout for Sensors
+                Row(modifier = Modifier.fillMaxSize()) {
+                    // Left Master Pane: Sensor List
+                    Column(
+                        modifier = Modifier
+                            .width(360.dp)
+                            .fillMaxHeight()
+                    ) {
+                        Text(
+                            text = "Smart Sensors",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                        
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text("< Back")
-                        }
-                    }
-                    
-                    Text(
-                        text = selectedSensor!!.name,
-                        style = MaterialTheme.typography.headlineLarge
-                    )
-                    
-                    Spacer(modifier = Modifier.height(32.dp))
-                    
-                    ThermostatControl(
-                        currentTemp = selectedSensor!!.currentTemp,
-                        setTemp = selectedSensor!!.setTemp,
-                        unit = tempUnit,
-                        onSetTempChanged = { newTemp ->
-                            scope.launch {
-                                // Repository expects Celsius
-                                sensorRepository.updateSetTemp(selectedSensor!!.id, newTemp)
+                            items(sensors, key = { it.id }) { sensor ->
+                                SensorCard(
+                                    sensor = sensor,
+                                    unit = tempUnit,
+                                    onClick = { selectedSensor = sensor }
+                                )
                             }
                         }
+                    }
+
+                    Divider(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(1.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant
                     )
-                }
-            } else {
-                when (currentTab) {
-                    0 -> {
-                        // List View: All Sensors
-                        Column {
-                            Text(
-                                text = "Smart Sensors",
-                                style = MaterialTheme.typography.titleLarge,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                            
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
+
+                    // Right Detail Pane: Thermostat Control
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val activeSensor = selectedSensor ?: sensors.firstOrNull()
+                        if (activeSensor != null) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                items(sensors, key = { it.id }) { sensor ->
-                                    SensorCard(
-                                        sensor = sensor,
-                                        unit = tempUnit,
-                                        onClick = { selectedSensor = sensor }
+                                Text(
+                                    text = activeSensor.name,
+                                    style = MaterialTheme.typography.headlineLarge
+                                )
+                                
+                                Spacer(modifier = Modifier.height(32.dp))
+                                
+                                ThermostatControl(
+                                    currentTemp = activeSensor.currentTemp,
+                                    setTemp = activeSensor.setTemp,
+                                    unit = tempUnit,
+                                    onSetTempChanged = { newTemp ->
+                                        scope.launch {
+                                            sensorRepository.updateSetTemp(activeSensor.id, newTemp)
+                                        }
+                                    }
+                                )
+                            }
+                        } else {
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(32.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "Select a Sensor",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "Tap any sensor card on the left to adjust thermostat controls.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
                         }
                     }
-                    1 -> {
-                        SchedulesScreen(sensorRepository = sensorRepository)
+                }
+            } else {
+                // Mobile layout or other tabs
+                if (selectedSensor != null && currentTab == 0) {
+                    // Detail View: Thermostat Control
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            TextButton(
+                                onClick = { selectedSensor = null },
+                                modifier = Modifier.align(Alignment.CenterStart)
+                            ) {
+                                Text("< Back")
+                            }
+                        }
+                        
+                        Text(
+                            text = selectedSensor!!.name,
+                            style = MaterialTheme.typography.headlineLarge
+                        )
+                        
+                        Spacer(modifier = Modifier.height(32.dp))
+                        
+                        ThermostatControl(
+                            currentTemp = selectedSensor!!.currentTemp,
+                            setTemp = selectedSensor!!.setTemp,
+                            unit = tempUnit,
+                            onSetTempChanged = { newTemp ->
+                                scope.launch {
+                                    sensorRepository.updateSetTemp(selectedSensor!!.id, newTemp)
+                                }
+                            }
+                        )
                     }
-                    2 -> {
-                        RelaysScreen(sensorRepository = sensorRepository)
-                    }
-                    3 -> {
-                        NotificationsScreen(notificationRepository = notificationRepository)
+                } else {
+                    when (currentTab) {
+                        0 -> {
+                            // List View: All Sensors
+                            Column {
+                                Text(
+                                    text = "Smart Sensors",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                                
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    items(sensors, key = { it.id }) { sensor ->
+                                        SensorCard(
+                                            sensor = sensor,
+                                            unit = tempUnit,
+                                            onClick = { selectedSensor = sensor }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        1 -> {
+                            SchedulesScreen(sensorRepository = sensorRepository)
+                        }
+                        2 -> {
+                            RelaysScreen(sensorRepository = sensorRepository)
+                        }
+                        3 -> {
+                            NotificationsScreen(notificationRepository = notificationRepository)
+                        }
                     }
                 }
             }

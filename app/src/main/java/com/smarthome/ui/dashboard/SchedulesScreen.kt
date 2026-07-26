@@ -2,6 +2,9 @@ package com.smarthome.ui.dashboard
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
@@ -28,43 +31,68 @@ fun SchedulesScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = Modifier.fillMaxSize()
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
-            Text(
-                text = "Device Schedules",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(16.dp)
-            )
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            val isTablet = maxWidth >= 600.dp
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(schedules, key = { it.id }) { schedule ->
-                    ScheduleCard(
-                        schedule = schedule,
-                        onEditClick = { editingSchedule = schedule }
-                    )
-                }
-            }
-        }
+            Column(modifier = Modifier.fillMaxSize()) {
+                Text(
+                    text = "Device Schedules",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(16.dp)
+                )
 
-        if (editingSchedule != null) {
-            ScheduleEditDialog(
-                schedule = editingSchedule!!,
-                allSchedules = schedules,
-                onDismiss = { editingSchedule = null },
-                onSave = { from, till ->
-                    scope.launch {
-                        try {
-                            sensorRepository.updateSchedule(editingSchedule!!.id, from, till)
-                            editingSchedule = null
-                        } catch (e: Exception) {
-                            snackbarHostState.showSnackbar(e.message ?: "Update failed")
+                if (isTablet) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 340.dp),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(schedules, key = { it.id }) { schedule ->
+                            ScheduleCard(
+                                schedule = schedule,
+                                onEditClick = { editingSchedule = schedule }
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(schedules, key = { it.id }) { schedule ->
+                            ScheduleCard(
+                                schedule = schedule,
+                                onEditClick = { editingSchedule = schedule }
+                            )
                         }
                     }
                 }
-            )
+            }
+
+            if (editingSchedule != null) {
+                ScheduleEditDialog(
+                    schedule = editingSchedule!!,
+                    allSchedules = schedules,
+                    onDismiss = { editingSchedule = null },
+                    onSave = { from, till ->
+                        scope.launch {
+                            try {
+                                sensorRepository.updateSchedule(editingSchedule!!.id, from, till)
+                                editingSchedule = null
+                            } catch (e: Exception) {
+                                snackbarHostState.showSnackbar(e.message ?: "Update failed")
+                            }
+                        }
+                    }
+                )
+            }
         }
     }
 }

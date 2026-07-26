@@ -61,99 +61,111 @@ fun LoginScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = if (isLogin) "Smart Home Login" else "Register Device",
-                style = MaterialTheme.typography.headlineMedium
-            )
-
-            if (isCustomServerEnabled) {
-                Spacer(modifier = Modifier.height(12.dp))
-                AssistChip(
-                    onClick = { showServerDialog = true },
-                    label = { 
-                        Text(
-                            text = "Custom API: ${customServerUrl ?: "Local Server"}",
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            OutlinedTextField(
-                value = serialNumber,
-                onValueChange = { serialNumber = it },
-                label = { Text("Serial Number") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = otp,
-                onValueChange = { 
-                    if (it.length <= 8 && it.all { char -> char.isDigit() }) {
-                        otp = it
-                    }
-                },
-                label = { Text("8-digit OTP") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                visualTransformation = PasswordVisualTransformation()
-            )
-
-            errorMessage?.let {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(text = it, color = MaterialTheme.colorScheme.error)
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Button(
-                onClick = {
-                    scope.launch {
-                        isLoading = true
-                        errorMessage = null
-                        val result = if (isLogin) {
-                            authRepository.login(serialNumber, otp)
-                        } else {
-                            authRepository.register(serialNumber, otp)
-                        }
-                        
-                        isLoading = false
-                        if (result.isSuccess) {
-                            onLoginSuccess(serialNumber, otp)
-                        } else {
-                            errorMessage = result.exceptionOrNull()?.message ?: "An error occurred"
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading && serialNumber.isNotBlank() && otp.length == 8
+            ElevatedCard(
+                modifier = Modifier
+                    .widthIn(max = 440.dp)
+                    .fillMaxWidth(),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
             ) {
-                if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = LocalContentColor.current)
-                } else {
-                    Text(if (isLogin) "Login" else "Register")
-                }
-            }
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = if (isLogin) "Smart Home Login" else "Register Device",
+                        style = MaterialTheme.typography.headlineMedium
+                    )
 
-            TextButton(onClick = { isLogin = !isLogin }) {
-                Text(if (isLogin) "Don't have an account? Register" else "Already registered? Login")
+                    if (isCustomServerEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        AssistChip(
+                            onClick = { showServerDialog = true },
+                            label = { 
+                                Text(
+                                    text = "Custom API: ${customServerUrl ?: "Local Server"}",
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    OutlinedTextField(
+                        value = serialNumber,
+                        onValueChange = { serialNumber = it },
+                        label = { Text("Serial Number") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = otp,
+                        onValueChange = { 
+                            if (it.length <= 8 && it.all { char -> char.isDigit() }) {
+                                otp = it
+                            }
+                        },
+                        label = { Text("8-digit OTP") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+
+                    errorMessage?.let {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = it, color = MaterialTheme.colorScheme.error)
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isLoading = true
+                                errorMessage = null
+                                val result = if (isLogin) {
+                                    authRepository.login(serialNumber, otp)
+                                } else {
+                                    authRepository.register(serialNumber, otp)
+                                }
+                                
+                                isLoading = false
+                                if (result.isSuccess) {
+                                    onLoginSuccess(serialNumber, otp)
+                                } else {
+                                    errorMessage = result.exceptionOrNull()?.message ?: "An error occurred"
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isLoading && serialNumber.isNotBlank() && otp.length == 8
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = LocalContentColor.current)
+                        } else {
+                            Text(if (isLogin) "Login" else "Register")
+                        }
+                    }
+
+                    TextButton(onClick = { isLogin = !isLogin }) {
+                        Text(if (isLogin) "Don't have an account? Register" else "Already registered? Login")
+                    }
+                }
             }
         }
     }
