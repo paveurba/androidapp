@@ -60,11 +60,15 @@ class ProductionSensorRepository(
 
     private fun startWebSocketListener() {
         scope.launch {
-            authPreferences.serialNumber.collect { serialNumber ->
+            combine(
+                authPreferences.serialNumber,
+                authPreferences.isCustomServerEnabled,
+                authPreferences.customServerUrl
+            ) { serialNumber, _, _ -> serialNumber }
+            .collect { serialNumber ->
+                disconnectWebSocket()
                 if (!serialNumber.isNullOrBlank()) {
                     connectWebSocket(serialNumber)
-                } else {
-                    disconnectWebSocket()
                 }
             }
         }
@@ -77,7 +81,8 @@ class ProductionSensorRepository(
 
         scope.launch {
             val host = try {
-                val uri = java.net.URI(com.smarthome.BuildConfig.API_BASE_URL)
+                val effectiveUrl = authPreferences.getEffectiveBaseUrl()
+                val uri = java.net.URI(effectiveUrl)
                 uri.host ?: "10.0.2.2"
             } catch (e: Exception) {
                 "10.0.2.2"

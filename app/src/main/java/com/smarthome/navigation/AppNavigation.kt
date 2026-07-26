@@ -40,6 +40,7 @@ fun AppNavigation(
     ) {
         composable(Screen.Auth.route) {
             LoginScreen(
+                authPreferences = authPreferences,
                 authRepository = authRepository,
                 onLoginSuccess = { serialNumber, otp ->
                     scope.launch {
@@ -54,6 +55,7 @@ fun AppNavigation(
         }
         composable(Screen.Dashboard.route) {
             DashboardScreen(
+                authPreferences = authPreferences,
                 sensorRepository = sensorRepository,
                 notificationRepository = notificationRepository,
                 onLogout = {

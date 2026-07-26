@@ -1,16 +1,16 @@
 # Smart Home Android App
 
-A modern, reactive Smart Home management application built with **Jetpack Compose**. This app allows users to monitor sensors, manage device schedules, control multi-channel relays, and receive system notifications.
+A modern, reactive Smart Home management application built with **Jetpack Compose**. This app allows users to monitor sensors, manage device schedules, control multi-channel relays, receive system notifications, and dynamically switch between backend API servers.
 
-## 🚀 Current Implementation Status
+---
 
-The project is currently a fully functional prototype using reactive mock data.
+## 🚀 Key Features & Implementation Status
 
 ### 1. Dashboard (Sensors)
 - **Real-time Monitoring**: View current temperature, humidity, battery levels, and link quality.
 - **Thermostat Control**: Interactive circular dial to adjust the "Set" temperature (Range: 0°C to 30°C).
 - **Unit Conversion**: Toggle between Celsius (°C) and Fahrenheit (°F) across the entire app.
-- **Visual Cues**: 
+- **Visual Alerts**: 
     - Highlights sensors requiring heating (Current < Set).
     - Red alerts for low battery (< 20%).
     - Orange alerts for stale data (> 1 hour).
@@ -25,19 +25,63 @@ The project is currently a fully functional prototype using reactive mock data.
 - **Custom Labels**: Each switch within a relay can have its own unique name.
 
 ### 4. Notification Center (Alerts)
-- **Inbox System**: All system alerts are saved locally within the app.
+- **Inbox System**: System alerts are saved locally within the app.
 - **Unread Badges**: Real-time badge count on the navigation bar.
 - **Read/Unread States**: Visual distinction between new and viewed alerts.
 
-### 5. Technical Highlights
-- **Reactive Architecture**: Built using `StateFlow` for immediate UI response to data changes.
-- **Performance Optimized**: 
-    - Stable keys for `LazyColumn` items to ensure smooth scrolling.
-    - Optimized object allocation (e.g., pre-allocated Date formatters) to prevent UI freezing/jank.
-- **Production-Ready Push Notifications**: 
-    - Full **Firebase Cloud Messaging (FCM)** integration.
-    - Configured `SmartHomeFirebaseService` for background alert handling.
-    - Automatic device token registration logic.
+### 5. Custom API Server Mode (Local / Offline Endpoint)
+- **Dynamic Endpoint Switch**: Switch from the default `.env` API URL (`BuildConfig.API_BASE_URL`) to a custom local server endpoint (e.g. `http://192.168.1.100:8000/api/`) directly from the UI.
+- **Accessible Everywhere**: Available via the settings icon on both the **Login Screen** and **Dashboard TopAppBar**.
+- **Persistent Preferences**: Endpoint and mode configuration are stored securely in `DataStore` preferences and saved across logouts and app restarts.
+- **Automatic Interceptor & WebSocket Switch**: Dynamically rewrites OkHttp request URLs and reconnects WebSocket listeners to the selected server host without requiring app restart.
+
+---
+
+## 📱 Running on Emulators & Physical Phones
+
+### A. Launching the Pixel 8 Emulator
+1. **From Terminal**:
+   ```bash
+   emulator -avd Pixel_8
+   ```
+2. **From Android Studio**:
+   Open **Tools** $\rightarrow$ **Device Manager** $\rightarrow$ Click **Play** next to `Pixel_8`.
+
+3. **Creating a new Pixel Emulator AVD (if needed)**:
+   ```bash
+   avdmanager create avd -n Pixel_8 -k "system-images;android-34;google_apis;arm64-v8a" -d "pixel_8"
+   ```
+
+### B. Installing & Running on Emulator
+With the emulator running:
+```bash
+# Build and install on active emulator
+./gradlew installDebug
+
+# Launch main activity
+adb shell am start -n com.smarthome.lv/com.smarthome.MainActivity
+```
+
+### C. Installing on a Physical Android Phone
+1. **Enable Developer Options & USB Debugging**:
+   - On your phone: **Settings** $\rightarrow$ **About Phone** $\rightarrow$ Tap **Build Number** 7 times.
+   - Go to **Settings** $\rightarrow$ **System / Additional Settings** $\rightarrow$ **Developer Options** $\rightarrow$ Enable **USB Debugging**.
+2. **Connect Phone via USB**:
+   - Plug phone into Mac via USB and accept **"Allow USB Debugging?"** prompt.
+   - Verify connection:
+     ```bash
+     adb devices
+     ```
+3. **Install the App**:
+   - **Direct install via Gradle**:
+     ```bash
+     ./gradlew installDebug
+     ```
+   - **Or install pre-built APK via ADB**:
+     ```bash
+     ./gradlew assembleDebug
+     adb install -r app/build/outputs/apk/debug/app-debug.apk
+     ```
 
 ---
 
@@ -55,31 +99,33 @@ The project is currently a fully functional prototype using reactive mock data.
    cd androidapp
    ```
 2. **Firebase Configuration**:
-   - The project is configured to use the package name `com.smarthome.lv`.
-   - Ensure your `app/google-services.json` matches this package name.
-3. **Open in Android Studio**:
-   Select `File > Open` and navigate to the project root.
-4. **Build the project**:
-   Use the terminal in Android Studio or run:
+   - Package name: `com.smarthome.lv`.
+   - Ensure `app/google-services.json` matches this package name.
+3. **Configure Base API URL**:
+   - `.env` file in project root sets default base URL:
+     ```env
+     API_BASE_URL=http://10.0.2.2:8000/api/
+     ```
+4. **Build & Run**:
    ```bash
    ./gradlew assembleDebug
    ```
-5. **Run on Device/Emulator**:
-   Click the **Run** button (Green Play Icon) in Android Studio.
 
 ---
 
 ## 📁 Project Structure
 
-- `com.smarthome.data`: Data models, Repositories, and the `SmartHomeFirebaseService`.
-- `com.smarthome.ui.dashboard`: Main feature screens (Sensors, Schedules, Relays, Notifications).
-- `com.smarthome.navigation`: App routing and Tab navigation logic.
-- `com.smarthome.MainActivity`: App entry point and FCM token retrieval.
+- `com.smarthome.data`: Data models, Repositories, `AuthPreferences`, and `SmartHomeFirebaseService`.
+- `com.smarthome.data.network`: `ApiService`, `AuthInterceptor`, `DynamicBaseUrlInterceptor`, and `NetworkClient`.
+- `com.smarthome.ui.components`: Custom components like `CustomApiServerDialog`.
+- `com.smarthome.ui.dashboard`: Feature screens (Sensors, Schedules, Relays, Notifications).
+- `com.smarthome.ui.auth`: `LoginScreen` with Custom API Server toggle.
+- `com.smarthome.navigation`: Navigation host and routing logic.
+- `com.smarthome.MainActivity`: Entry point and FCM initialization.
 
 ---
 
 ## 📡 Sending Push Notifications
-To send a real notification to the app:
-1. Locate the **Device Token** in the Logcat (filter by `FCM`).
-2. Use the Firebase Console or a cURL command to send a message to that token.
-3. The app will receive and display the notification even if it's in the background.
+1. Locate the **Device Token** in Logcat (filter by `FCM`).
+2. Send test notification via Firebase Console or cURL.
+3. The app receives and displays system alerts in real-time.

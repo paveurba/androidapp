@@ -24,6 +24,7 @@ object NetworkClient {
 
     private fun buildApiService(context: Context, authPreferences: AuthPreferences): ApiService {
         val okHttpClient = OkHttpClient.Builder()
+            .addInterceptor(DynamicBaseUrlInterceptor(authPreferences))
             .addInterceptor(AuthInterceptor(context, authPreferences))
             .addInterceptor(loggingInterceptor)
             .build()

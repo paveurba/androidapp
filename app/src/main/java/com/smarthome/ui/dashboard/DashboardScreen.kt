@@ -15,9 +15,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.Settings
+import com.smarthome.data.AuthPreferences
 import com.smarthome.data.NotificationRepository
 import com.smarthome.data.SensorRepository
 import com.smarthome.data.TempSensor
+import com.smarthome.ui.components.CustomApiServerDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -31,10 +34,14 @@ private val timeFormatter = java.text.SimpleDateFormat("HH:mm:ss", java.util.Loc
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
+    authPreferences: AuthPreferences,
     sensorRepository: SensorRepository,
     notificationRepository: NotificationRepository,
     onLogout: () -> Unit
 ) {
+    val isCustomServerEnabled by authPreferences.isCustomServerEnabled.collectAsState(initial = false)
+    var showServerDialog by remember { mutableStateOf(false) }
+
     val sensors by sensorRepository.getSensors().collectAsState(initial = emptyList())
     val notifications by notificationRepository.getNotifications().collectAsState(initial = emptyList())
     val unreadCount = notifications.count { !it.isRead }
@@ -78,6 +85,13 @@ fun DashboardScreen(
                         }) {
                             Text(if (tempUnit == TempUnit.CELSIUS) "°C" else "°F")
                         }
+                    }
+                    IconButton(onClick = { showServerDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Custom API Server Settings",
+                            tint = if (isCustomServerEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     TextButton(onClick = onLogout) {
                         Text("Logout", color = MaterialTheme.colorScheme.error)
@@ -204,6 +218,13 @@ fun DashboardScreen(
                     }
                 }
             }
+        }
+
+        if (showServerDialog) {
+            CustomApiServerDialog(
+                authPreferences = authPreferences,
+                onDismiss = { showServerDialog = false }
+            )
         }
     }
 }
