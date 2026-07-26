@@ -22,7 +22,7 @@ class MainActivity : ComponentActivity() {
 
         // Production repositories using the Symfony API
         val authRepository = ProductionAuthRepository(apiService)
-        val sensorRepository = ProductionSensorRepository(apiService)
+        val sensorRepository = ProductionSensorRepository(apiService, authPreferences)
         val notificationRepository = ProductionNotificationRepository(apiService)
 
         // Retrieve and log FCM token (real API)

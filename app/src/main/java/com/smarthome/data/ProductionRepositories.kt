@@ -3,6 +3,12 @@ package com.smarthome.data
 import com.smarthome.data.network.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import okhttp3.Response
+import org.json.JSONObject
 
 class ProductionAuthRepository(private val apiService: ApiService) : AuthRepository {
     override suspend fun login(serialNumber: String, otp: String): Result<Unit> {
@@ -34,6 +40,7 @@ class ProductionAuthRepository(private val apiService: ApiService) : AuthReposit
 
 class ProductionSensorRepository(
     private val apiService: ApiService,
+    private val authPreferences: AuthPreferences,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 ) : SensorRepository {
 
@@ -41,8 +48,103 @@ class ProductionSensorRepository(
     private val _schedules = MutableStateFlow<List<SensorSchedule>>(emptyList())
     private val _relays = MutableStateFlow<List<Relay>>(emptyList())
 
+    private var webSocket: WebSocket? = null
+    private val okHttpClient = OkHttpClient()
+    private var isConnecting = false
+    private var currentSerialNumber: String? = null
+
     init {
         startPolling()
+        startWebSocketListener()
+    }
+
+    private fun startWebSocketListener() {
+        scope.launch {
+            authPreferences.serialNumber.collect { serialNumber ->
+                if (!serialNumber.isNullOrBlank()) {
+                    connectWebSocket(serialNumber)
+                } else {
+                    disconnectWebSocket()
+                }
+            }
+        }
+    }
+
+    private fun connectWebSocket(serialNumber: String) {
+        currentSerialNumber = serialNumber
+        if (webSocket != null || isConnecting) return
+        isConnecting = true
+
+        scope.launch {
+            val host = try {
+                val uri = java.net.URI(com.smarthome.BuildConfig.API_BASE_URL)
+                uri.host ?: "10.0.2.2"
+            } catch (e: Exception) {
+                "10.0.2.2"
+            }
+            val wsUrl = "ws://$host:8080/?clientId=$serialNumber"
+            android.util.Log.d("SocketEvent", "Connecting to WebSocket: $wsUrl")
+
+            val request = Request.Builder().url(wsUrl).build()
+
+            webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    isConnecting = false
+                    android.util.Log.i("SocketEvent", "WebSocket connection opened")
+                }
+
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    android.util.Log.d("SocketEvent", "WebSocket message received: $text")
+                    try {
+                        val json = JSONObject(text)
+                        val event = json.optString("event")
+                        if (event == "refresh_sensors") {
+                            android.util.Log.i("SocketEvent", "Refreshing sensor list from socket event")
+                            scope.launch {
+                                fetchSensors()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("SocketEvent", "Error parsing WebSocket message: ${e.message}")
+                    }
+                }
+
+                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                    webSocket.close(1000, null)
+                }
+
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    android.util.Log.i("SocketEvent", "WebSocket connection closed: $reason ($code)")
+                    this@ProductionSensorRepository.webSocket = null
+                    isConnecting = false
+                    triggerReconnect()
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    android.util.Log.e("SocketEvent", "WebSocket failure: ${t.message}", t)
+                    this@ProductionSensorRepository.webSocket = null
+                    isConnecting = false
+                    triggerReconnect()
+                }
+            })
+        }
+    }
+
+    private fun triggerReconnect() {
+        val sn = currentSerialNumber
+        if (!sn.isNullOrBlank()) {
+            scope.launch {
+                delay(5000)
+                connectWebSocket(sn)
+            }
+        }
+    }
+
+    private fun disconnectWebSocket() {
+        currentSerialNumber = null
+        webSocket?.close(1000, "User logged out")
+        webSocket = null
+        isConnecting = false
     }
 
     private fun startPolling() {
