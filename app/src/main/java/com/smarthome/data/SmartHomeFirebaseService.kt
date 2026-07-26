@@ -64,10 +64,15 @@ class SmartHomeFirebaseService : FirebaseMessagingService() {
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
-        
+
+        // Use a unique request code per notification (matching the notification ID below) so
+        // each notification gets its own PendingIntent. A shared request code combined with
+        // FLAG_ONE_SHOT meant tapping one notification could invalidate the PendingIntent used
+        // by another still-visible notification, silently failing to reopen the app.
+        val notificationId = System.currentTimeMillis().toInt()
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+            this, notificationId, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
@@ -77,6 +82,6 @@ class SmartHomeFirebaseService : FirebaseMessagingService() {
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
 
-        notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
+        notificationManager.notify(notificationId, notificationBuilder.build())
     }
 }

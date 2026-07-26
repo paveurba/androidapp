@@ -34,19 +34,23 @@ android {
         }
     }
 
+    val keyPropsFile = rootProject.file("key.properties")
+    val keyProps = Properties()
+    var hasReleaseSigning = false
+    if (keyPropsFile.exists()) {
+        keyPropsFile.inputStream().use { keyProps.load(it) }
+        hasReleaseSigning = keyProps.getProperty("storeFile") != null
+    }
+
     signingConfigs {
-        create("release") {
-            val keyPropsFile = rootProject.file("key.properties")
-            if (keyPropsFile.exists()) {
-                val properties = Properties()
-                properties.load(keyPropsFile.inputStream())
-                val storeFilePath = properties.getProperty("storeFile")
-                if (storeFilePath != null) {
-                    storeFile = file(storeFilePath)
-                    storePassword = properties.getProperty("storePassword")
-                    keyAlias = properties.getProperty("keyAlias")
-                    keyPassword = properties.getProperty("keyPassword")
-                }
+        if (hasReleaseSigning) {
+            create("release") {
+                // Resolve relative to the project root (matches rootProject.file("key.properties") above),
+                // not the app module directory, so relative storeFile paths in key.properties work as expected.
+                storeFile = rootProject.file(keyProps.getProperty("storeFile"))
+                storePassword = keyProps.getProperty("storePassword")
+                keyAlias = keyProps.getProperty("keyAlias")
+                keyPassword = keyProps.getProperty("keyPassword")
             }
         }
     }
@@ -55,7 +59,12 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            // Only attach a signing config when key.properties actually provides one, so
+            // `assembleRelease` still succeeds (unsigned) on machines/CI without secrets
+            // instead of failing with an opaque "keystore not set" error.
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -84,6 +93,10 @@ dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
+    // Firebase's play-services-basement/base transitively pull in fragment:1.0.0, which is too
+    // old for the ActivityResult APIs (registerForActivityResult) used in MainActivity. Pin a
+    // modern version explicitly so Gradle's dependency resolution picks it over the old one.
+    implementation("androidx.fragment:fragment-ktx:1.6.2")
     implementation(platform("androidx.compose:compose-bom:2023.10.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")

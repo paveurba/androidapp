@@ -53,6 +53,11 @@ class ProductionSensorRepository(
     private var isConnecting = false
     private var currentSerialNumber: String? = null
 
+    // Bumped every time the socket is intentionally torn down (logout, serial number change).
+    // Reconnect attempts capture the generation they were scheduled under and no-op if it has
+    // since changed, so a delayed reconnect can't resurrect a session after the user logged out.
+    private var connectionGeneration = 0
+
     init {
         startPolling()
         startWebSocketListener()
@@ -75,7 +80,8 @@ class ProductionSensorRepository(
         }
     }
 
-    private fun connectWebSocket(serialNumber: String) {
+    private fun connectWebSocket(serialNumber: String, expectedGeneration: Int = connectionGeneration) {
+        if (expectedGeneration != connectionGeneration) return
         currentSerialNumber = serialNumber
         if (webSocket != null || isConnecting) return
         isConnecting = true
@@ -86,8 +92,18 @@ class ProductionSensorRepository(
 
             val request = Request.Builder().url(wsUrl).build()
 
+            // Bail out if we were disconnected (e.g. logout) while suspended above.
+            if (expectedGeneration != connectionGeneration) {
+                isConnecting = false
+                return@launch
+            }
+
             webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: Response) {
+                    if (expectedGeneration != connectionGeneration) {
+                        webSocket.close(1000, null)
+                        return
+                    }
                     isConnecting = false
                     android.util.Log.i("SocketEvent", "WebSocket connection opened")
                 }
@@ -165,32 +181,39 @@ class ProductionSensorRepository(
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                     android.util.Log.i("SocketEvent", "WebSocket connection closed: $reason ($code)")
+                    if (expectedGeneration != connectionGeneration) return
                     this@ProductionSensorRepository.webSocket = null
                     isConnecting = false
-                    triggerReconnect()
+                    triggerReconnect(expectedGeneration)
                 }
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     android.util.Log.e("SocketEvent", "WebSocket failure: ${t.message}", t)
+                    if (expectedGeneration != connectionGeneration) return
                     this@ProductionSensorRepository.webSocket = null
                     isConnecting = false
-                    triggerReconnect()
+                    triggerReconnect(expectedGeneration)
                 }
             })
         }
     }
 
-    private fun triggerReconnect() {
+    private fun triggerReconnect(expectedGeneration: Int) {
         val sn = currentSerialNumber
         if (!sn.isNullOrBlank()) {
             scope.launch {
                 delay(5000)
-                connectWebSocket(sn)
+                // If the user logged out (or the serial number changed) during the delay,
+                // connectionGeneration will have moved on and this reconnect is stale — drop it.
+                if (expectedGeneration == connectionGeneration) {
+                    connectWebSocket(sn, expectedGeneration)
+                }
             }
         }
     }
 
     private fun disconnectWebSocket() {
+        connectionGeneration++
         currentSerialNumber = null
         webSocket?.close(1000, "User logged out")
         webSocket = null

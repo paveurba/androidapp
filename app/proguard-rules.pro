@@ -3,7 +3,6 @@
     @com.google.gson.annotations.SerializedName <fields>;
 }
 -keep class com.smarthome.data.** { *; }
--keep class com.smarthome.data.network.** { *; }
 
 # Keep OkHttp & Retrofit annotations
 -dontwarn okhttp3.**

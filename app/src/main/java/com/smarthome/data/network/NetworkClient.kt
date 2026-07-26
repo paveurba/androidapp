@@ -10,7 +10,13 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object NetworkClient {
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
+        // Never log full request/response bodies & headers (which include the Basic Auth
+        // credentials and FCM token added by AuthInterceptor) in release builds.
+        level = if (BuildConfig.DEBUG) {
+            HttpLoggingInterceptor.Level.BODY
+        } else {
+            HttpLoggingInterceptor.Level.NONE
+        }
     }
 
     @Volatile
