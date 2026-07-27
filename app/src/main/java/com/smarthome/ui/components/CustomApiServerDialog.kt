@@ -137,9 +137,9 @@ fun CustomApiServerDialog(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "WebSocket:\n" + if (enabledState) {
-                                if (inputWsUrl.isNotBlank()) inputWsUrl else "Auto-derived (port 8080)"
+                                if (inputWsUrl.isNotBlank()) inputWsUrl else "Auto-derived (wss://host/ws or ws://host:8080)"
                             } else {
-                                "Default (ws://...:8080)"
+                                "Default (wss://host/ws or ws://host:8080)"
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = if (enabledState) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant

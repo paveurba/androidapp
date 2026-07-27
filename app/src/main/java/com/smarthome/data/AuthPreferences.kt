@@ -170,8 +170,14 @@ class AuthPreferences(private val context: Context) {
         } catch (e: Exception) {
             "10.0.2.2"
         }
-        val scheme = if (effectiveApiUrl.startsWith("https://")) "wss" else "ws"
-        return formatWebSocketUrl("$scheme://$host:8080/", serialNumber)
+        // HTTPS hosts are assumed to sit behind the nginx reverse proxy, which exposes
+        // the WebSocket backend at wss://<host>/ws (443) rather than a direct port.
+        // Plain HTTP hosts (local/dev servers) run the WebSocket server directly on :8080.
+        return if (effectiveApiUrl.startsWith("https://")) {
+            formatWebSocketUrl("wss://$host/ws", serialNumber)
+        } else {
+            formatWebSocketUrl("ws://$host:8080/", serialNumber)
+        }
     }
 
     private fun formatWebSocketUrl(url: String, serialNumber: String): String {
