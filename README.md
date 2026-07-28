@@ -75,7 +75,7 @@ With the emulator running:
 ./gradlew installDebug
 
 # Launch main activity
-adb shell am start -n com.smarthome.lv/com.smarthome.MainActivity
+adb shell am start -n com.upasmarthome.app/com.smarthome.MainActivity
 ```
 
 ### C. Installing on a Physical Android Phone
@@ -106,7 +106,7 @@ adb shell am start -n com.smarthome.lv/com.smarthome.MainActivity
   ```bash
   emulator -avd Pixel_Tablet
   ./gradlew installDebug
-  adb shell am start -n com.smarthome.lv/com.smarthome.MainActivity
+  adb shell am start -n com.upasmarthome.app/com.smarthome.MainActivity
   ```
 
 ---
@@ -130,7 +130,7 @@ adb shell am start -n com.smarthome.lv/com.smarthome.MainActivity
      cp .env.example .env
      ```
 3. **Firebase Configuration**:
-   - Package name: `com.smarthome.lv`.
+   - Package name: `com.upasmarthome.app`.
    - Copy `app/google-services.json.example` to `app/google-services.json` and insert your Firebase credentials:
      ```bash
      cp app/google-services.json.example app/google-services.json
