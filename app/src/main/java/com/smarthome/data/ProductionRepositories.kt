@@ -375,7 +375,7 @@ class ProductionNotificationRepository(
                         _notifications.value = response.body()?.member ?: emptyList()
                     }
                 } catch (e: Exception) {}
-                delay(60000)
+                delay(5000)
             }
         }
     }
