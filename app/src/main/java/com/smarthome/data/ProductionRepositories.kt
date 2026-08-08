@@ -374,9 +374,8 @@ class ProductionAlarmSensorRepository(
                     if (response.isSuccessful) {
                         _alarmSensors.value = response.body()?.member ?: emptyList()
                     }
-                    // Not successful (e.g. 404 via the cloud, which doesn't mount this
-                    // endpoint) just leaves the last known value in place, same as every
-                    // other repository here - not an error worth surfacing.
+                    // Not successful just leaves the last known value in place, same as
+                    // every other repository here - not an error worth surfacing.
                 } catch (e: Exception) {}
                 delay(15000)
             }

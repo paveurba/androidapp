@@ -45,9 +45,8 @@ private fun clearLabel(kind: String): String = when (kind) {
 
 /**
  * Read-only - these devices have no on/off command, just a live condition
- * (see AlarmSensor/AlarmSensorRepository). Pi-only, same as the Garden tab
- * would be if it had one: nothing renders unless the app is talking to the
- * Pi directly (the cloud server doesn't mount /api/alarm-sensors).
+ * (see AlarmSensor/AlarmSensorRepository). Works both on the local network
+ * and through the cloud, same as the Sensors/Relays tabs.
  */
 @Composable
 fun AlarmSensorsScreen(
@@ -68,7 +67,7 @@ fun AlarmSensorsScreen(
             if (sensors.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = "No alarm sensors reporting.\nOnly available when connected to the Pi directly on your local network.",
+                        text = "No alarm sensors reporting yet.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,

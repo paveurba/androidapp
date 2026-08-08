@@ -38,8 +38,8 @@ interface ApiService {
     @POST("relays/{relayId}/toggle/{switchId}")
     suspend fun toggleRelay(@Path("relayId") relayId: String, @Path("switchId") switchId: String): Response<Unit>
 
-    // Pi-only (see AlarmSensorRepository) - not mounted on the cloud server,
-    // so this 404s unless talking to the Pi directly on the local network.
+    // Shared with the cloud server, same as everything else here (see
+    // AlarmSensorRepository).
     @GET("alarm-sensors")
     suspend fun getAlarmSensors(): Response<HydraCollection<AlarmSensor>>
 
