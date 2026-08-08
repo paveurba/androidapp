@@ -410,6 +410,33 @@ class ProductionAlarmSensorRepository(
     override fun getAlarmSensors(): Flow<List<AlarmSensor>> = _alarmSensors.asStateFlow()
 }
 
+class ProductionAgentStatusRepository(
+    private val apiService: ApiService,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+) : AgentStatusRepository {
+
+    private val _status = MutableStateFlow<AgentStatus?>(null)
+
+    init {
+        scope.launch {
+            while (isActive) {
+                try {
+                    val response = apiService.getAgentStatus()
+                    if (response.isSuccessful) {
+                        response.body()?.let { _status.value = it }
+                    }
+                    // Not successful (e.g. 404 via the Pi directly, where this
+                    // endpoint doesn't exist) leaves _status at null - "unknown",
+                    // not "offline". See AgentStatusRepository's doc comment.
+                } catch (e: Exception) {}
+                delay(15000)
+            }
+        }
+    }
+
+    override fun getAgentStatus(): Flow<AgentStatus?> = _status.asStateFlow()
+}
+
 class ProductionNotificationRepository(
     private val apiService: ApiService,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())

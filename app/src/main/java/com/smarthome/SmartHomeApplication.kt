@@ -2,6 +2,7 @@ package com.smarthome
 
 import android.app.Application
 import com.smarthome.data.AuthPreferences
+import com.smarthome.data.ProductionAgentStatusRepository
 import com.smarthome.data.ProductionAlarmSensorRepository
 import com.smarthome.data.ProductionAuthRepository
 import com.smarthome.data.ProductionNotificationRepository
@@ -44,5 +45,9 @@ class SmartHomeApplication : Application() {
 
     val alarmSensorRepository by lazy {
         ProductionAlarmSensorRepository(apiService)
+    }
+
+    val agentStatusRepository by lazy {
+        ProductionAgentStatusRepository(apiService)
     }
 }

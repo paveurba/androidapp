@@ -50,6 +50,10 @@ interface ApiService {
     @GET("alarm-sensors")
     suspend fun getAlarmSensors(): Response<HydraCollection<AlarmSensor>>
 
+    // Cloud-only (see AgentStatus).
+    @GET("agent-status")
+    suspend fun getAgentStatus(): Response<AgentStatus>
+
     @GET("notifications")
     suspend fun getNotifications(): Response<HydraCollection<AppNotification>>
 

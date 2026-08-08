@@ -19,6 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import com.smarthome.data.AgentStatusRepository
 import com.smarthome.data.AlarmSensorRepository
 import com.smarthome.data.AuthPreferences
 import com.smarthome.data.NotificationRepository
@@ -42,11 +45,13 @@ fun DashboardScreen(
     sensorRepository: SensorRepository,
     notificationRepository: NotificationRepository,
     alarmSensorRepository: AlarmSensorRepository,
+    agentStatusRepository: AgentStatusRepository,
     onLogout: () -> Unit
 ) {
     val isCustomServerEnabled by authPreferences.isCustomServerEnabled.collectAsState(initial = false)
     var showServerDialog by remember { mutableStateOf(false) }
 
+    val agentStatus by agentStatusRepository.getAgentStatus().collectAsState(initial = null)
     val sensors by sensorRepository.getSensors().collectAsState(initial = emptyList())
     val notifications by notificationRepository.getNotifications().collectAsState(initial = emptyList())
     val unreadCount = notifications.count { !it.isRead }
@@ -83,6 +88,7 @@ fun DashboardScreen(
                             Text(if (tempUnit == TempUnit.CELSIUS) "°C" else "°F")
                         }
                     }
+                    AgentStatusBadge(agentStatus)
                     IconButton(onClick = { showServerDialog = true }) {
                         Icon(
                             imageVector = Icons.Default.Settings,
@@ -404,6 +410,54 @@ fun SensorCard(sensor: TempSensor, unit: TempUnit, onClick: () -> Unit) {
                 modifier = Modifier.align(Alignment.End)
             )
         }
+    }
+}
+
+/**
+ * Small colored-dot indicator for whether the Pi's cloud uplink is
+ * currently connected (com.smarthome.data.AgentStatusRepository). Renders
+ * nothing at all while status is null - "unknown" (e.g. talking to the Pi
+ * directly, where this is meaningless) is not the same as "offline" and
+ * shouldn't be shown as if it were.
+ */
+@Composable
+fun AgentStatusBadge(status: com.smarthome.data.AgentStatus?) {
+    if (status == null) return
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(horizontal = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(
+                    color = if (status.connected) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
+                    shape = CircleShape
+                )
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        val label = if (status.connected) {
+            "Home"
+        } else {
+            "Offline" + (status.lastSeen?.let { " (${elapsedLabel(it)})" } ?: "")
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+private fun elapsedLabel(epochMillis: Long): String {
+    val elapsedMs = System.currentTimeMillis() - epochMillis
+    val minutes = elapsedMs / 60000
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> "${minutes}m ago"
+        minutes < 1440 -> "${minutes / 60}h ago"
+        else -> "${minutes / 1440}d ago"
     }
 }
 
