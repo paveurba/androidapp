@@ -26,6 +26,7 @@ private fun kindLabel(kind: String): String = when (kind) {
     "contact" -> "Door/Window"
     "occupancy" -> "Motion"
     "water_leak" -> "Water Leak"
+    "vibration" -> "Vibration"
     else -> kind
 }
 
@@ -33,6 +34,7 @@ private fun triggeredLabel(kind: String): String = when (kind) {
     "contact" -> "Open"
     "occupancy" -> "Motion detected"
     "water_leak" -> "Leak detected"
+    "vibration" -> "Vibration detected"
     else -> "Triggered"
 }
 
@@ -40,6 +42,7 @@ private fun clearLabel(kind: String): String = when (kind) {
     "contact" -> "Closed"
     "occupancy" -> "Clear"
     "water_leak" -> "Dry"
+    "vibration" -> "Still"
     else -> "OK"
 }
 
