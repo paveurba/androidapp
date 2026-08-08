@@ -338,6 +338,37 @@ class ProductionSensorRepository(
     override fun getRelays(): Flow<List<Relay>> = _relays.asStateFlow()
 
     override suspend fun toggleRelaySwitch(relayId: String, switchId: String) {
+        // Optimistic flip for a snappy UI - corrected below with the
+        // server's actual result the moment it arrives, since this guess
+        // can be wrong: a *toggle* flips whatever the server currently has,
+        // not what we last knew. If a feedback-driven update (real hardware
+        // state confirmed over MQTT) landed between our last fetch/WS event
+        // and this tap, our guess and the server's own flip start from
+        // different states and land on opposite results - previously this
+        // silently stuck (the endpoint returned 204, nothing to correct
+        // with), showing the switch backwards until the next unrelated
+        // refresh happened to fix it.
+        applyRelaySwitchState(relayId, switchId, !currentSwitchState(relayId, switchId))
+
+        try {
+            val response = apiService.toggleRelay(relayId, switchId)
+            val actualIsOn = response.body()?.isOn
+            if (response.isSuccessful && actualIsOn != null) {
+                applyRelaySwitchState(relayId, switchId, actualIsOn)
+            } else {
+                fetchRelays()
+            }
+        } catch (e: Exception) {
+            fetchRelays()
+        }
+    }
+
+    private fun currentSwitchState(relayId: String, switchId: String): Boolean {
+        val relay = _relays.value.find { it.id == relayId } ?: return false
+        return relay.switches.find { it.id == switchId }?.isOn ?: false
+    }
+
+    private fun applyRelaySwitchState(relayId: String, switchId: String, isOn: Boolean) {
         val currentRelays = _relays.value.toMutableList()
         val relayIndex = currentRelays.indexOfFirst { it.id == relayId }
         if (relayIndex != -1) {
@@ -345,16 +376,10 @@ class ProductionSensorRepository(
             val switches = relay.switches.toMutableList()
             val switchIndex = switches.indexOfFirst { it.id == switchId }
             if (switchIndex != -1) {
-                switches[switchIndex] = switches[switchIndex].copy(isOn = !switches[switchIndex].isOn)
+                switches[switchIndex] = switches[switchIndex].copy(isOn = isOn)
                 currentRelays[relayIndex] = relay.copy(switches = switches)
                 _relays.value = currentRelays
             }
-        }
-
-        try {
-            apiService.toggleRelay(relayId, switchId)
-        } catch (e: Exception) {
-            fetchRelays()
         }
     }
 }

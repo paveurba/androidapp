@@ -13,6 +13,8 @@ data class HydraCollection<T>(
     val member: List<T>
 )
 
+data class ToggleRelayResponse(val isOn: Boolean)
+
 interface ApiService {
     @POST("login")
     suspend fun login(@Body request: LoginRequest): Response<LoginResponse>
@@ -35,8 +37,13 @@ interface ApiService {
     @GET("relays")
     suspend fun getRelays(): Response<HydraCollection<Relay>>
 
+    // Server returns the real resulting isOn (not just success) - this is a
+    // *toggle* (flip whatever the server currently has), so our own
+    // optimistic guess at the pre-toggle state can be wrong (e.g. it hasn't
+    // caught up to a feedback-driven update yet) and land backwards. See
+    // ProductionRepositories.kt's toggleRelaySwitch.
     @POST("relays/{relayId}/toggle/{switchId}")
-    suspend fun toggleRelay(@Path("relayId") relayId: String, @Path("switchId") switchId: String): Response<Unit>
+    suspend fun toggleRelay(@Path("relayId") relayId: String, @Path("switchId") switchId: String): Response<ToggleRelayResponse>
 
     // Shared with the cloud server, same as everything else here (see
     // AlarmSensorRepository).

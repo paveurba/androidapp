@@ -90,9 +90,9 @@ fun RelayCard(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
-            
+
             Spacer(modifier = Modifier.height(12.dp))
-            
+
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 relay.switches.chunked(2).forEach { rowSwitches ->
                     Row(
@@ -102,6 +102,7 @@ fun RelayCard(
                         rowSwitches.forEach { relaySwitch ->
                             SwitchItem(
                                 relaySwitch = relaySwitch,
+                                displayInverted = relay.displayInverted,
                                 onToggle = { onSwitchToggle(relaySwitch.id) },
                                 modifier = Modifier.weight(1f)
                             )
@@ -119,9 +120,16 @@ fun RelayCard(
 @Composable
 fun SwitchItem(
     relaySwitch: RelaySwitch,
+    displayInverted: Boolean = false,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // relaySwitch.isOn is always the raw backend value (what the agent's
+    // hardware feedback reports, and what a toggle flips) - displayInverted
+    // only affects what's shown here, never what onToggle does. See
+    // Relay.displayInverted's doc comment.
+    val displayIsOn = relaySwitch.isOn xor displayInverted
+
     Surface(
         tonalElevation = 1.dp,
         shape = MaterialTheme.shapes.small,
@@ -139,7 +147,7 @@ fun SwitchItem(
                 modifier = Modifier.weight(1f)
             )
             Switch(
-                checked = relaySwitch.isOn,
+                checked = displayIsOn,
                 onCheckedChange = { onToggle() },
                 modifier = Modifier.scale(0.8f)
             )
