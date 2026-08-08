@@ -9,14 +9,14 @@ plugins {
 
 android {
     namespace = "com.smarthome"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.smarthome.lv"
         minSdk = 24
-        targetSdk = 35
-        versionCode = 5
-        versionName = "0.0.2"
+        targetSdk = 36
+        versionCode = 6
+        versionName = "0.0.3"
 
         val envFile = rootProject.file(".env")
         if (envFile.exists()) {
