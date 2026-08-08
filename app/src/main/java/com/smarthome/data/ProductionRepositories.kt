@@ -359,6 +359,33 @@ class ProductionSensorRepository(
     }
 }
 
+class ProductionAlarmSensorRepository(
+    private val apiService: ApiService,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+) : AlarmSensorRepository {
+
+    private val _alarmSensors = MutableStateFlow<List<AlarmSensor>>(emptyList())
+
+    init {
+        scope.launch {
+            while (isActive) {
+                try {
+                    val response = apiService.getAlarmSensors()
+                    if (response.isSuccessful) {
+                        _alarmSensors.value = response.body()?.member ?: emptyList()
+                    }
+                    // Not successful (e.g. 404 via the cloud, which doesn't mount this
+                    // endpoint) just leaves the last known value in place, same as every
+                    // other repository here - not an error worth surfacing.
+                } catch (e: Exception) {}
+                delay(15000)
+            }
+        }
+    }
+
+    override fun getAlarmSensors(): Flow<List<AlarmSensor>> = _alarmSensors.asStateFlow()
+}
+
 class ProductionNotificationRepository(
     private val apiService: ApiService,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())

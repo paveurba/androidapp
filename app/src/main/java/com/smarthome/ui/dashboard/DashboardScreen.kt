@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.filled.Settings
+import com.smarthome.data.AlarmSensorRepository
 import com.smarthome.data.AuthPreferences
 import com.smarthome.data.NotificationRepository
 import com.smarthome.data.SensorRepository
@@ -39,6 +41,7 @@ fun DashboardScreen(
     authPreferences: AuthPreferences,
     sensorRepository: SensorRepository,
     notificationRepository: NotificationRepository,
+    alarmSensorRepository: AlarmSensorRepository,
     onLogout: () -> Unit
 ) {
     val isCustomServerEnabled by authPreferences.isCustomServerEnabled.collectAsState(initial = false)
@@ -68,8 +71,9 @@ fun DashboardScreen(
                         0 -> "Smart Home"
                         1 -> "Schedules"
                         2 -> "Relays"
+                        3 -> "Alarm Sensors"
                         else -> "Notifications"
-                    }) 
+                    })
                 },
                 actions = {
                     if (currentTab == 0) {
@@ -119,6 +123,12 @@ fun DashboardScreen(
                     NavigationBarItem(
                         selected = currentTab == 3,
                         onClick = { currentTab = 3 },
+                        icon = { Icon(Icons.Default.Warning, contentDescription = "Alarm Sensors") },
+                        label = { Text("Alarms") }
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == 4,
+                        onClick = { currentTab = 4 },
                         icon = {
                             BadgedBox(
                                 badge = {
@@ -311,6 +321,9 @@ fun DashboardScreen(
                             RelaysScreen(sensorRepository = sensorRepository)
                         }
                         3 -> {
+                            AlarmSensorsScreen(alarmSensorRepository = alarmSensorRepository)
+                        }
+                        4 -> {
                             NotificationsScreen(notificationRepository = notificationRepository)
                         }
                     }

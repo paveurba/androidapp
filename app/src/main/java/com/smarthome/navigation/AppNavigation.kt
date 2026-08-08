@@ -20,7 +20,8 @@ fun AppNavigation(
     authPreferences: AuthPreferences,
     authRepository: AuthRepository,
     sensorRepository: com.smarthome.data.SensorRepository,
-    notificationRepository: com.smarthome.data.NotificationRepository
+    notificationRepository: com.smarthome.data.NotificationRepository,
+    alarmSensorRepository: com.smarthome.data.AlarmSensorRepository
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
@@ -58,6 +59,7 @@ fun AppNavigation(
                 authPreferences = authPreferences,
                 sensorRepository = sensorRepository,
                 notificationRepository = notificationRepository,
+                alarmSensorRepository = alarmSensorRepository,
                 onLogout = {
                     scope.launch {
                         authPreferences.clear()
