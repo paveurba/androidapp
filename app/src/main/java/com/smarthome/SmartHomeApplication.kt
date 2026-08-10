@@ -7,6 +7,7 @@ import com.smarthome.data.ProductionAlarmSensorRepository
 import com.smarthome.data.ProductionAuthRepository
 import com.smarthome.data.ProductionNotificationRepository
 import com.smarthome.data.ProductionSensorRepository
+import com.smarthome.data.ScheduleConfigStore
 import com.smarthome.data.network.NetworkClient
 
 /**
@@ -31,12 +32,16 @@ class SmartHomeApplication : Application() {
         NetworkClient.getApiService(applicationContext, authPreferences)
     }
 
+    private val scheduleConfigStore by lazy {
+        ScheduleConfigStore(applicationContext)
+    }
+
     val authRepository by lazy {
         ProductionAuthRepository(apiService)
     }
 
     val sensorRepository by lazy {
-        ProductionSensorRepository(apiService, authPreferences)
+        ProductionSensorRepository(apiService, authPreferences, scheduleConfigStore)
     }
 
     val notificationRepository by lazy {

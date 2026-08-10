@@ -34,6 +34,14 @@ interface ApiService {
     @PATCH("schedules/{id}")
     suspend fun updateSchedule(@Path("id") id: String, @Body schedule: Map<String, Int>): Response<SensorSchedule>
 
+    // body: {"device": String, "fromHour": Int, "fromMinute": Int, "toHour": Int, "toMinute": Int}
+    // - Map<String, Any> since device is a String alongside the Int fields.
+    @POST("schedules")
+    suspend fun createSchedule(@Body request: Map<String, @JvmSuppressWildcards Any>): Response<SensorSchedule>
+
+    @DELETE("schedules/{id}")
+    suspend fun deleteSchedule(@Path("id") id: String): Response<Unit>
+
     @GET("relays")
     suspend fun getRelays(): Response<HydraCollection<Relay>>
 

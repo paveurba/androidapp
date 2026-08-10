@@ -41,10 +41,16 @@ class ProductionAuthRepository(private val apiService: ApiService) : AuthReposit
 class ProductionSensorRepository(
     private val apiService: ApiService,
     private val authPreferences: AuthPreferences,
+    private val scheduleConfigStore: ScheduleConfigStore,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 ) : SensorRepository {
 
     private val _sensors = MutableStateFlow<List<TempSensor>>(emptyList())
+    // _schedules mirrors the server's current (enabled-only) schedule list -
+    // used internally to reconcile LocalScheduleConfig (see reconcileSchedules)
+    // and for overlap checks in createSchedule/updateScheduleConfig. The UI
+    // itself no longer reads this directly - see LocalScheduleConfig's doc
+    // comment for why getLocalScheduleConfigs() is the source of truth there.
     private val _schedules = MutableStateFlow<List<SensorSchedule>>(emptyList())
     private val _relays = MutableStateFlow<List<Relay>>(emptyList())
 
@@ -264,8 +270,26 @@ class ProductionSensorRepository(
             val response = apiService.getSchedules()
             if (response.isSuccessful) {
                 _schedules.value = response.body()?.member ?: emptyList()
+                reconcileSchedules()
             }
         } catch (e: Exception) {}
+    }
+
+    // A local config with remoteId set claims to be enabled server-side -
+    // if the server's own list disagrees (deleted independently, e.g. an
+    // overlap eviction, or the Pi agent rejecting a device it no longer
+    // recognizes after a topology change), flip it back to disabled locally
+    // rather than leaving remoteId pointing at nothing. This is the only
+    // path that can *disable* a config without an explicit user action.
+    private suspend fun reconcileSchedules() {
+        val liveIds = _schedules.value.map { it.id }.toSet()
+        val configs = scheduleConfigStore.configs.first()
+        for (config in configs) {
+            val remoteId = config.remoteId ?: continue
+            if (remoteId !in liveIds) {
+                scheduleConfigStore.update(config.localId) { it.copy(enabled = false, remoteId = null) }
+            }
+        }
     }
 
     override fun getSensors(): Flow<List<TempSensor>> = _sensors.asStateFlow()
@@ -285,29 +309,29 @@ class ProductionSensorRepository(
         }
     }
 
-    override fun getSchedules(): Flow<List<SensorSchedule>> = _schedules.asStateFlow()
+    override fun getLocalScheduleConfigs(): Flow<List<LocalScheduleConfig>> = scheduleConfigStore.configs
 
-    override suspend fun updateSchedule(scheduleId: String, fromHour: Int, toHour: Int) {
-        val schedules = _schedules.value
-        val scheduleToUpdate = schedules.find { it.id == scheduleId } ?: return
-        
-        // Local Validation: Check for overlaps before sending to server
-        if (isOverlappingLocal(scheduleId, scheduleToUpdate.sensorName, fromHour, toHour)) {
-            throw Exception("Schedule overlaps with an existing time window for this device.")
-        }
+    override suspend fun createSchedule(device: String, fromHour: Int, fromMinute: Int, toHour: Int, toMinute: Int) {
+        val config = scheduleConfigStore.add(device, fromHour, fromMinute, toHour, toMinute)
+        setScheduleEnabled(config.localId, true)
+    }
 
-        // Optimistic UI update
-        val current = schedules.toMutableList()
-        val index = current.indexOfFirst { it.id == scheduleId }
-        if (index != -1) {
-            current[index] = current[index].copy(fromHour = fromHour, toHour = toHour)
-            _schedules.value = current
+    override suspend fun updateScheduleConfig(localId: String, fromHour: Int, fromMinute: Int, toHour: Int, toMinute: Int) {
+        var target: LocalScheduleConfig? = null
+        scheduleConfigStore.update(localId) { config ->
+            target = config
+            config.copy(fromHour = fromHour, fromMinute = fromMinute, toHour = toHour, toMinute = toMinute)
         }
+        val remoteId = target?.remoteId ?: return // disabled - local-only change, nothing to PATCH
 
         try {
-            val response = apiService.updateSchedule(scheduleId, mapOf("fromHour" to fromHour, "toHour" to toHour))
-            if (!response.isSuccessful) {
-                fetchSchedules() // Rollback on server error
+            val response = apiService.updateSchedule(
+                remoteId,
+                mapOf("fromHour" to fromHour, "fromMinute" to fromMinute, "toHour" to toHour, "toMinute" to toMinute)
+            )
+            if (response.isSuccessful) {
+                fetchSchedules()
+            } else {
                 throw Exception("Failed to update schedule: ${response.message()}")
             }
         } catch (e: Exception) {
@@ -316,23 +340,50 @@ class ProductionSensorRepository(
         }
     }
 
-    private fun isOverlappingLocal(id: String, deviceName: String, start: Int, end: Int): Boolean {
-        val range1 = getHoursInRange(start, end)
-        return _schedules.value.any { s ->
-            if (s.id == id || s.sensorName != deviceName) return@any false
-            val range2 = getHoursInRange(s.fromHour, s.toHour)
-            range1.intersect(range2).isNotEmpty()
+    override suspend fun deleteScheduleConfig(localId: String) {
+        val config = scheduleConfigStore.configs.first().find { it.localId == localId } ?: return
+        if (config.remoteId != null) {
+            try {
+                apiService.deleteSchedule(config.remoteId)
+            } catch (e: Exception) {}
+            fetchSchedules()
         }
+        scheduleConfigStore.remove(localId)
     }
 
-    private fun getHoursInRange(start: Int, end: Int): Set<Int> {
-        val hours = mutableSetOf<Int>()
-        var current = start
-        while (current != end) {
-            hours.add(current)
-            current = (current + 1) % 24
+    override suspend fun setScheduleEnabled(localId: String, enabled: Boolean) {
+        val config = scheduleConfigStore.configs.first().find { it.localId == localId } ?: return
+        if (enabled == config.enabled) return
+
+        if (enabled) {
+            try {
+                val response = apiService.createSchedule(
+                    mapOf(
+                        "device" to config.device,
+                        "fromHour" to config.fromHour, "fromMinute" to config.fromMinute,
+                        "toHour" to config.toHour, "toMinute" to config.toMinute
+                    )
+                )
+                val created = response.body()
+                if (response.isSuccessful && created != null) {
+                    scheduleConfigStore.update(localId) { it.copy(enabled = true, remoteId = created.id) }
+                    fetchSchedules()
+                } else {
+                    throw Exception("Failed to create schedule: ${response.message()}")
+                }
+            } catch (e: Exception) {
+                throw e
+            }
+        } else {
+            val remoteId = config.remoteId
+            if (remoteId != null) {
+                try {
+                    apiService.deleteSchedule(remoteId)
+                } catch (e: Exception) {}
+            }
+            scheduleConfigStore.update(localId) { it.copy(enabled = false, remoteId = null) }
+            fetchSchedules()
         }
-        return hours
     }
 
     override fun getRelays(): Flow<List<Relay>> = _relays.asStateFlow()
