@@ -10,6 +10,27 @@ import okhttp3.WebSocketListener
 import okhttp3.Response
 import org.json.JSONObject
 
+// apiService's error responses are all {"error": "..."} (see writeError in
+// smarthomeapi/pkg/core/api) - response.message() only carries the HTTP
+// status line ("Bad Request"), which throws away the actually useful part
+// (e.g. "Schedule overlaps with existing schedule for..."). This digs the
+// real message out of the body so it's what ends up in the snackbar.
+private fun apiErrorMessage(response: retrofit2.Response<*>, fallbackPrefix: String): String {
+    val body = try {
+        response.errorBody()?.string()
+    } catch (e: Exception) {
+        null
+    }
+    val serverMessage = body?.let {
+        try {
+            JSONObject(it).optString("error").ifBlank { null }
+        } catch (e: Exception) {
+            null
+        }
+    }
+    return serverMessage ?: "$fallbackPrefix: ${response.message().ifBlank { "HTTP ${response.code()}" }}"
+}
+
 class ProductionAuthRepository(private val apiService: ApiService) : AuthRepository {
     override suspend fun login(serialNumber: String, otp: String): Result<Unit> {
         return try {
@@ -275,20 +296,40 @@ class ProductionSensorRepository(
         } catch (e: Exception) {}
     }
 
-    // A local config with remoteId set claims to be enabled server-side -
-    // if the server's own list disagrees (deleted independently, e.g. an
-    // overlap eviction, or the Pi agent rejecting a device it no longer
-    // recognizes after a topology change), flip it back to disabled locally
-    // rather than leaving remoteId pointing at nothing. This is the only
-    // path that can *disable* a config without an explicit user action.
+    // Keeps LocalScheduleConfig in sync with the server's own schedule
+    // list in both directions:
+    //
+    //  - A local config with remoteId set claims to be enabled server-side
+    //    - if the server's own list disagrees (deleted independently, e.g.
+    //      an overlap eviction, or the Pi agent rejecting a device it no
+    //      longer recognizes after a topology change), flip it back to
+    //      disabled locally rather than leaving remoteId pointing at
+    //      nothing. This is the only path that can *disable* a config
+    //      without an explicit user action.
+    //  - A live server-side schedule with no matching local config at all
+    //    (see ScheduleConfigStore.adopt's doc comment) gets adopted, so
+    //    e.g. the Pi's topology.json-seeded schedules (ledbar, hot_water_*)
+    //    show up and become editable/deletable through the app instead of
+    //    silently causing "overlaps" the user can't see anywhere.
     private suspend fun reconcileSchedules() {
-        val liveIds = _schedules.value.map { it.id }.toSet()
+        val live = _schedules.value
+        val liveIds = live.map { it.id }.toSet()
         val configs = scheduleConfigStore.configs.first()
+
         for (config in configs) {
             val remoteId = config.remoteId ?: continue
             if (remoteId !in liveIds) {
                 scheduleConfigStore.update(config.localId) { it.copy(enabled = false, remoteId = null) }
             }
+        }
+
+        val knownRemoteIds = configs.mapNotNull { it.remoteId }.toSet()
+        for (schedule in live) {
+            if (schedule.id in knownRemoteIds) continue
+            scheduleConfigStore.adopt(
+                schedule.id, schedule.sensorName,
+                schedule.fromHour, schedule.fromMinute, schedule.toHour, schedule.toMinute
+            )
         }
     }
 
@@ -313,7 +354,16 @@ class ProductionSensorRepository(
 
     override suspend fun createSchedule(device: String, fromHour: Int, fromMinute: Int, toHour: Int, toMinute: Int) {
         val config = scheduleConfigStore.add(device, fromHour, fromMinute, toHour, toMinute)
-        setScheduleEnabled(config.localId, true)
+        try {
+            setScheduleEnabled(config.localId, true)
+        } catch (e: Exception) {
+            // The server rejected it (e.g. overlap) - don't leave a
+            // disabled ghost config behind that the user never asked to
+            // save; they'll adjust the time window and retry from the
+            // still-open create dialog.
+            scheduleConfigStore.remove(config.localId)
+            throw e
+        }
     }
 
     override suspend fun updateScheduleConfig(localId: String, fromHour: Int, fromMinute: Int, toHour: Int, toMinute: Int) {
@@ -332,7 +382,7 @@ class ProductionSensorRepository(
             if (response.isSuccessful) {
                 fetchSchedules()
             } else {
-                throw Exception("Failed to update schedule: ${response.message()}")
+                throw Exception(apiErrorMessage(response, "Failed to update schedule"))
             }
         } catch (e: Exception) {
             fetchSchedules()
@@ -369,7 +419,7 @@ class ProductionSensorRepository(
                     scheduleConfigStore.update(localId) { it.copy(enabled = true, remoteId = created.id) }
                     fetchSchedules()
                 } else {
-                    throw Exception("Failed to create schedule: ${response.message()}")
+                    throw Exception(apiErrorMessage(response, "Failed to create schedule"))
                 }
             } catch (e: Exception) {
                 throw e

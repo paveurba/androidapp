@@ -63,6 +63,23 @@ class ScheduleConfigStore(private val context: Context) {
         return config
     }
 
+    // adopt records a schedule that already exists server-side (remoteId)
+    // but that this local store has never heard of - e.g. one seeded from
+    // the Pi's own topology.json rather than created through this app, or
+    // created by a different Android install. Without this, such a
+    // schedule stays invisible in SchedulesScreen (which reads only local
+    // configs) even though it's live and can cause "overlaps" the user has
+    // no way to see or resolve. Enabled by construction, since it's live.
+    suspend fun adopt(remoteId: String, device: String, fromHour: Int, fromMinute: Int, toHour: Int, toMinute: Int): LocalScheduleConfig {
+        val config = LocalScheduleConfig(
+            localId = UUID.randomUUID().toString(),
+            device = device, fromHour = fromHour, fromMinute = fromMinute, toHour = toHour, toMinute = toMinute,
+            enabled = true, remoteId = remoteId
+        )
+        mutate { it + config }
+        return config
+    }
+
     suspend fun remove(localId: String) {
         mutate { list -> list.filterNot { it.localId == localId } }
     }
