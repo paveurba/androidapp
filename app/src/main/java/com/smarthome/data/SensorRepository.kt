@@ -2,12 +2,19 @@ package com.smarthome.data
 
 import kotlinx.coroutines.flow.Flow
 
+// pm25/vocIndex are opportunistic: only an air-quality-capable sensor (e.g.
+// an IKEA VINDSTYRKA) reports them - see smarthomeapi's model.Sensor doc
+// comment. Defaults to 0f so a server predating this field (or a Pi agent
+// that hasn't been redeployed yet) deserializes fine instead of crashing
+// Gson, same reasoning as RelaySwitch.schedulable's default below.
 data class TempSensor(
     val id: String,
     val name: String,
     val currentTemp: Float,
     val setTemp: Float,
     val humidity: Float,
+    val pm25: Float = 0f,
+    val vocIndex: Float = 0f,
     val batteryLevel: Int,
     val linkQuality: Int,
     val lastUpdated: Long

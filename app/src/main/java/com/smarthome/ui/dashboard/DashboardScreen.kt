@@ -395,13 +395,29 @@ fun SensorCard(sensor: TempSensor, unit: TempUnit, onClick: () -> Unit) {
             ) {
                 SensorInfoItem(label = "Humidity", value = "${sensor.humidity.toInt()}%")
                 SensorInfoItem(
-                    label = "Battery", 
+                    label = "Battery",
                     value = "${sensor.batteryLevel}%",
                     valueColor = if (isBatteryLow) MaterialTheme.colorScheme.error else Color.Unspecified
                 )
                 SensorInfoItem(label = "Link", value = "${sensor.linkQuality}")
             }
-            
+
+            // pm25/vocIndex are opportunistic (only an air-quality-capable
+            // sensor, e.g. an IKEA VINDSTYRKA, reports them - see
+            // TempSensor's doc comment) - a second row only when there's
+            // actually something to show, so a plain temperature sensor's
+            // card doesn't grow a "PM2.5: 0" line it can never mean.
+            if (sensor.pm25 > 0f || sensor.vocIndex > 0f) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    SensorInfoItem(label = "PM2.5", value = "${sensor.pm25.toInt()} µg/m³")
+                    SensorInfoItem(label = "VOC Index", value = "${sensor.vocIndex.toInt()}")
+                }
+            }
+
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Last updated: ${timeFormatter.format(java.util.Date(sensor.lastUpdated))}",
