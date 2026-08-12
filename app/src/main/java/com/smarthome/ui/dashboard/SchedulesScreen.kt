@@ -199,6 +199,39 @@ fun ScheduleCard(
 
 private fun formatTime(hour: Int, minute: Int) = "%02d:%02d".format(hour, minute)
 
+// A bare continuous Slider crammed into an AlertDialog's narrow width makes
+// an exact value (e.g. hour 20 out of 24 stops) genuinely hard to land a
+// finger on - confirmed as a real usability bug, not just a theoretical one
+// (drag would overshoot past the intended stop). The -/+ buttons give an
+// always-exact way to reach any value regardless of touch precision, while
+// the slider stays for quick coarse adjustment. Wraps at the boundary
+// (max -> 0, 0 -> max) rather than clamping, matching Schedule.isInRange's
+// own from > to "wraps past midnight" semantics - an overnight window's
+// hour fields are expected to cross the 23->0 boundary, so the stepper
+// shouldn't refuse to.
+@Composable
+private fun SteppedSlider(value: Float, onValueChange: (Float) -> Unit, max: Int, steps: Int) {
+    val span = max + 1
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { onValueChange((((value.toInt() - 1) % span + span) % span).toFloat()) }) {
+            // Icons.Default only bundles a curated subset (no Remove/Minus)
+            // without pulling in the much larger material-icons-extended
+            // dependency - a plain glyph avoids that for one button.
+            Text("−", style = MaterialTheme.typography.titleLarge)
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = 0f..max.toFloat(),
+            steps = steps,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(onClick = { onValueChange(((value.toInt() + 1) % span).toFloat()) }) {
+            Icon(Icons.Default.Add, contentDescription = "Increase")
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ScheduleTimeDialog(
@@ -223,14 +256,14 @@ private fun ScheduleTimeDialog(
         text = {
             Column {
                 Text("From: ${formatTime(fromHour.toInt(), fromMinute.toInt())}")
-                Slider(value = fromHour, onValueChange = { fromHour = it }, valueRange = 0f..23f, steps = 22)
-                Slider(value = fromMinute, onValueChange = { fromMinute = it }, valueRange = 0f..59f, steps = 58)
+                SteppedSlider(value = fromHour, onValueChange = { fromHour = it }, max = 23, steps = 22)
+                SteppedSlider(value = fromMinute, onValueChange = { fromMinute = it }, max = 59, steps = 58)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text("Till: ${formatTime(toHour.toInt(), toMinute.toInt())}")
-                Slider(value = toHour, onValueChange = { toHour = it }, valueRange = 0f..23f, steps = 22)
-                Slider(value = toMinute, onValueChange = { toMinute = it }, valueRange = 0f..59f, steps = 58)
+                SteppedSlider(value = toHour, onValueChange = { toHour = it }, max = 23, steps = 22)
+                SteppedSlider(value = toMinute, onValueChange = { toMinute = it }, max = 59, steps = 58)
 
                 if (sameTime) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -310,14 +343,14 @@ private fun CreateScheduleDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text("From: ${formatTime(fromHour.toInt(), fromMinute.toInt())}")
-                Slider(value = fromHour, onValueChange = { fromHour = it }, valueRange = 0f..23f, steps = 22)
-                Slider(value = fromMinute, onValueChange = { fromMinute = it }, valueRange = 0f..59f, steps = 58)
+                SteppedSlider(value = fromHour, onValueChange = { fromHour = it }, max = 23, steps = 22)
+                SteppedSlider(value = fromMinute, onValueChange = { fromMinute = it }, max = 59, steps = 58)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text("Till: ${formatTime(toHour.toInt(), toMinute.toInt())}")
-                Slider(value = toHour, onValueChange = { toHour = it }, valueRange = 0f..23f, steps = 22)
-                Slider(value = toMinute, onValueChange = { toMinute = it }, valueRange = 0f..59f, steps = 58)
+                SteppedSlider(value = toHour, onValueChange = { toHour = it }, max = 23, steps = 22)
+                SteppedSlider(value = toMinute, onValueChange = { toMinute = it }, max = 59, steps = 58)
 
                 if (sameTime) {
                     Spacer(modifier = Modifier.height(8.dp))
