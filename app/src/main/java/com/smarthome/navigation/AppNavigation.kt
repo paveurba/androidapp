@@ -64,6 +64,15 @@ fun AppNavigation(
                 agentStatusRepository = agentStatusRepository,
                 onLogout = {
                     scope.launch {
+                        // Must clear local schedule configs and both
+                        // dashboards' tile layouts too, not just auth state -
+                        // none of these are scoped to the logged-in account,
+                        // so leftovers would otherwise show up (phantom
+                        // disabled schedules, someone else's tile layout)
+                        // under whichever account logs in next.
+                        sensorRepository.clearLocalScheduleConfigs()
+                        sensorRepository.clearSensorTileLayout()
+                        alarmSensorRepository.clearAlarmSensorTileLayout()
                         authPreferences.clear()
                         navController.navigate(Screen.Auth.route) {
                             popUpTo(Screen.Dashboard.route) { inclusive = true }

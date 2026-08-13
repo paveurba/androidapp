@@ -1,11 +1,8 @@
 package com.smarthome.ui.dashboard
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
@@ -14,11 +11,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.smarthome.data.AlarmSensor
 import com.smarthome.data.AlarmSensorRepository
-
-private val alarmTimeFormatter = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+import kotlinx.coroutines.launch
 
 // Matches config.SensorKind on the agent - anything else is shown as-is,
 // so an unrecognized future kind still renders instead of disappearing.
@@ -48,65 +46,90 @@ private fun clearLabel(kind: String): String = when (kind) {
 
 /**
  * Read-only - these devices have no on/off command, just a live condition
- * (see AlarmSensor/AlarmSensorRepository). Works both on the local network
- * and through the cloud, same as the Sensors/Relays tabs.
+ * (see AlarmSensor/AlarmSensorRepository), so unlike the sensor dashboard a
+ * tile tap does nothing; only the corner drag handle to reposition is wired up.
+ * Same dashing.io-style freeform block layout as the temp-sensor dashboard
+ * (see DashboardCanvas), sharing its grid math and drag handling but with
+ * its own persisted layout (AlarmSensorLayoutStore) - alarm sensor ids and
+ * temp sensor ids are different id spaces, so they don't share a store.
  */
 @Composable
 fun AlarmSensorsScreen(
     alarmSensorRepository: AlarmSensorRepository
 ) {
     val sensors by alarmSensorRepository.getAlarmSensors().collectAsState(initial = emptyList())
+    val tilePositions by alarmSensorRepository.getAlarmSensorTilePositions().collectAsState(initial = emptyList())
+    val scope = rememberCoroutineScope()
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val isTablet = maxWidth >= 600.dp
-
-        Column(modifier = Modifier.fillMaxSize()) {
-            Text(
-                text = "Alarm Sensors",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(16.dp)
-            )
-
-            if (sensors.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "No alarm sensors reporting yet.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.padding(32.dp)
-                    )
-                }
-            } else if (isTablet) {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 280.dp),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(sensors, key = { it.id }) { sensor -> AlarmSensorCard(sensor) }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(sensors, key = { it.id }) { sensor -> AlarmSensorCard(sensor) }
-                }
+    Column(modifier = Modifier.fillMaxSize()) {
+        // No separate in-body title or Reset Layout button here - the
+        // TopAppBar (DashboardScreen) already reads "Alarm Sensors" for
+        // this tab and now carries the reset action as an icon (and its
+        // confirmation dialog) itself, shared with the Sensors tab.
+        if (sensors.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "No alarm sensors reporting yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(32.dp)
+                )
             }
+        } else {
+            AlarmSensorDashboardCanvas(
+                sensors = sensors,
+                positions = tilePositions,
+                onSwap = { movedId, movedOrder, displacedId, displacedOrder ->
+                    scope.launch {
+                        alarmSensorRepository.swapAlarmSensorTilePositions(movedId, movedOrder, displacedId, displacedOrder)
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+            )
         }
     }
 }
 
+/**
+ * Thin [DashboardCanvas] wrapper for alarm sensors - see
+ * [SensorDashboardCanvas] for the temp-sensor counterpart. onItemClick is
+ * left at its no-op default since alarm sensors have no detail view to open.
+ */
 @Composable
-fun AlarmSensorCard(sensor: AlarmSensor) {
+fun AlarmSensorDashboardCanvas(
+    sensors: List<AlarmSensor>,
+    positions: List<com.smarthome.data.SensorTilePosition>,
+    onSwap: (movedId: String, movedOrder: Int, displacedId: String, displacedOrder: Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    DashboardCanvas(
+        items = sensors,
+        itemId = { it.id },
+        positions = positions,
+        onSwap = onSwap,
+        modifier = modifier
+    ) { sensor, sizeDp ->
+        AlarmSensorTile(sensor = sensor, sizeDp = sizeDp)
+    }
+}
+
+/**
+ * Compact square dashboard tile - the alarm-sensor counterpart of
+ * [SensorTile]. Keeps the same status rules as the old full-width
+ * [AlarmSensorCard] (triggered = red tint + warning icon, low-battery red,
+ * stale-reading warning) in less space: a small colored dot replaces the
+ * old "Last updated: HH:mm:ss" text line.
+ */
+@Composable
+fun AlarmSensorTile(sensor: AlarmSensor, sizeDp: Dp, modifier: Modifier = Modifier) {
     val isBatteryLow = sensor.batteryLevel in 1..19 // 0 usually just means "never reported a battery field"
     val isStale = System.currentTimeMillis() - sensor.lastUpdated > 3600000 // 1 hour
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.size(sizeDp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (sensor.triggered)
@@ -115,57 +138,74 @@ fun AlarmSensorCard(sensor: AlarmSensor) {
                 MaterialTheme.colorScheme.surface
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(10.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
-                Column {
-                    Text(text = sensor.id, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        text = kindLabel(sensor.kind),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary
+                Text(
+                    text = sensor.id,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (isStale) {
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .size(8.dp)
+                            .background(color = Color(0xFFF57C00), shape = CircleShape)
                     )
                 }
+            }
+
+            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     imageVector = if (sensor.triggered) Icons.Default.Warning else Icons.Default.CheckCircle,
                     contentDescription = if (sensor.triggered) triggeredLabel(sensor.kind) else clearLabel(sensor.kind),
                     tint = if (sensor.triggered) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                 )
+                Text(
+                    text = if (sensor.triggered) triggeredLabel(sensor.kind) else clearLabel(sensor.kind),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (sensor.triggered) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = kindLabel(sensor.kind),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = if (sensor.triggered) triggeredLabel(sensor.kind) else clearLabel(sensor.kind),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (sensor.triggered) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
-            Spacer(modifier = Modifier.height(8.dp))
-
+            // End-padded so this bottom-most row's trailing text doesn't run
+            // under the corner DragHandle DraggableTile overlays on top of
+            // this card - see DraggableTile's doc comment (SensorDashboard.kt).
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = HANDLE_CLEARANCE),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                SensorInfoItem(
-                    label = "Battery",
-                    value = "${sensor.batteryLevel}%",
-                    valueColor = if (isBatteryLow) MaterialTheme.colorScheme.error else Color.Unspecified
+                Text(
+                    text = "Batt ${sensor.batteryLevel}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isBatteryLow) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
                 )
-                SensorInfoItem(label = "Link", value = "${sensor.linkQuality}")
+                Text(
+                    text = "Link ${sensor.linkQuality}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
             }
-
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Last updated: ${alarmTimeFormatter.format(java.util.Date(sensor.lastUpdated))}",
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isStale) Color(0xFFF57C00) else MaterialTheme.colorScheme.outline,
-                modifier = Modifier.align(Alignment.End)
-            )
         }
     }
 }

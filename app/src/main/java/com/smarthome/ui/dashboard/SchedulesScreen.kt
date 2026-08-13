@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.dp
 import com.smarthome.data.LocalScheduleConfig
 import com.smarthome.data.SensorRepository
@@ -53,12 +54,8 @@ fun SchedulesScreen(
             val isTablet = maxWidth >= 600.dp
 
             Column(modifier = Modifier.fillMaxSize()) {
-                Text(
-                    text = "Device Schedules",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(16.dp)
-                )
-
+                // No separate in-body title here - the TopAppBar
+                // (DashboardScreen) already reads "Schedules" for this tab.
                 if (configs.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
@@ -186,7 +183,11 @@ fun ScheduleCard(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
-            Switch(checked = config.enabled, onCheckedChange = onEnabledChange)
+            Switch(
+                checked = config.enabled,
+                onCheckedChange = onEnabledChange,
+                modifier = Modifier.scale(SWITCH_SCALE)
+            )
             IconButton(onClick = onEditClick) {
                 Icon(Icons.Default.Edit, contentDescription = "Edit Schedule")
             }

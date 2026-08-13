@@ -32,18 +32,15 @@ fun NotificationsScreen(
     val timeFormatter = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Notifications Inbox",
-                style = MaterialTheme.typography.titleLarge
-            )
-            if (notifications.isNotEmpty()) {
+        // No separate in-body title here - the TopAppBar (DashboardScreen)
+        // already reads "Notifications" for this tab.
+        if (notifications.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, end = 8.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
                 TextButton(onClick = { scope.launch { notificationRepository.clearAll() } }) {
                     Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))

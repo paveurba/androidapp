@@ -2,10 +2,10 @@ package com.smarthome.ui.dashboard
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +16,10 @@ import com.smarthome.data.Relay
 import com.smarthome.data.RelaySwitch
 import com.smarthome.data.SensorRepository
 import kotlinx.coroutines.launch
+
+// Shared by RelaysScreen's SwitchItem and SchedulesScreen's ScheduleCard so
+// every on/off toggle in the app is the same (smaller-than-default) size.
+internal const val SWITCH_SCALE = 0.8f
 
 @Composable
 fun RelaysScreen(
@@ -28,19 +32,23 @@ fun RelaysScreen(
         val isTablet = maxWidth >= 600.dp
 
         Column(modifier = Modifier.fillMaxSize()) {
-            Text(
-                text = "Relay Controllers",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(16.dp)
-            )
-
+            // No separate in-body title here - the TopAppBar
+            // (DashboardScreen) already reads "Relays" for this tab.
             if (isTablet) {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 340.dp),
+                // Staggered (masonry), not a row-aligned LazyVerticalGrid -
+                // relay cards vary a lot in height (a group with 1 switch
+                // vs. 3), and a row-aligned grid leaves visible gaps under
+                // the shorter cards in a row instead of letting the next
+                // card start right where the previous one in that column
+                // ended. That mismatch is exactly what looked "chaotic" on
+                // a wide tablet with only a handful of relay groups to fill
+                // the row.
+                LazyVerticalStaggeredGrid(
+                    columns = StaggeredGridCells.Adaptive(minSize = 340.dp),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalItemSpacing = 16.dp
                 ) {
                     items(relays, key = { it.id }) { relay ->
                         RelayCard(
@@ -85,10 +93,12 @@ fun RelayCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            // Plain default text color, not tinted primary - matches
+            // ScheduleCard's device title (SchedulesScreen.kt) so a title
+            // reads the same regardless of which tab it's on.
             Text(
                 text = relay.name,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
+                style = MaterialTheme.typography.titleMedium
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -146,10 +156,14 @@ fun SwitchItem(
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.weight(1f)
             )
+            // Scaled down to match ScheduleCard's Switch (SchedulesScreen.kt)
+            // - same SWITCH_SCALE constant, so toggles are the same
+            // (smaller) size everywhere, not just consistent with each
+            // other but also less space-hungry in a list of many.
             Switch(
                 checked = displayIsOn,
                 onCheckedChange = { onToggle() },
-                modifier = Modifier.scale(0.8f)
+                modifier = Modifier.scale(SWITCH_SCALE)
             )
         }
     }

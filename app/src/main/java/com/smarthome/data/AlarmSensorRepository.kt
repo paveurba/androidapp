@@ -29,4 +29,20 @@ data class AlarmSensor(
  */
 interface AlarmSensorRepository {
     fun getAlarmSensors(): Flow<List<AlarmSensor>>
+
+    // --- alarm-sensor dashboard tile layout, same idea as
+    // SensorRepository's sensor tile layout (see SensorTilePosition's doc
+    // comment) but stored separately - alarm sensor ids and temp sensor ids
+    // are different id spaces and aren't guaranteed distinct from each
+    // other, so sharing one store could let a temp sensor's saved position
+    // collide with an alarm sensor's. ---
+
+    fun getAlarmSensorTilePositions(): Flow<List<SensorTilePosition>>
+    suspend fun swapAlarmSensorTilePositions(movedId: String, movedOrder: Int, displacedId: String, displacedOrder: Int)
+
+    // Wipes all locally-persisted tile positions. Used by both the alarm
+    // dashboard's "Reset Layout" action and logout/account switch - not
+    // scoped to the logged-in serial number, same as every other local-only
+    // store here.
+    suspend fun clearAlarmSensorTileLayout()
 }
