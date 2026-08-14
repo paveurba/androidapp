@@ -164,12 +164,18 @@ The Android app communicates with the **Symfony 8.1 API Platform** backend (`sma
 
 ---
 
-### 2. WebSocket Push Server (`ws://<HOST>:8080/?clientId=<SERIAL_NUMBER>`)
+### 2. WebSocket Push Server (`ws://<HOST>:8080/`)
 
 #### Connection URL Format
 ```
 ws://127.0.0.1:8080/?clientId=SN123456
 ```
+As of versionCode 11 (0.0.7), the upgrade request also requires the same
+`Authorization: Basic base64(serialNumber:otp)` header as the REST API (see
+[`ws.Hub.Handler`](../smarthomeapi/pkg/core/ws/hub.go) in `smarthomeapi`) —
+the server derives the client identity from the verified credential, not
+from `clientId`, which is now cosmetic/ignored. See
+[Security Notes](#-security-notes) below for why.
 
 #### Incoming Event Payload Structure (Server $\rightarrow$ Client)
 ```json
@@ -283,6 +289,68 @@ System inbox alerts and push notifications.
 - `serialNumber` (`String`): Registered device serial number.
 - `otp` (`String`): 8-digit numeric one-time authorization PIN.
 - `token` (`String`): JWT Bearer authentication token.
+
+---
+
+## 🔒 Security Notes
+
+Findings from a security pass over this app and the `smarthomeapi`/`smarthome`
+backends it talks to (2026-08-14). "Fixed" items are already deployed to
+`deb.upanet.org`/`pihome3` and shipped in versionCode 11+; "Open" items are
+tracked here as follow-ups, not yet actioned.
+
+### Fixed
+
+- **`/ws` accepted an unauthenticated `clientId` query param as identity.**
+  Anyone who knew or guessed a device's serial number (it's printed on the
+  device, not a secret) could connect to `/ws?clientId=<serial>` with zero
+  credentials and passively receive that account's live sensor/relay/
+  schedule/notification events, including alarm/door/water-leak triggers.
+  Fixed server-side (`smarthomeapi/pkg/core/ws/hub.go`): the upgrade now
+  requires the same Basic Auth as REST, and the broadcast key comes from the
+  verified serial, never the query param. Fixed here in
+  `ProductionRepositories.kt`'s `connectWebSocket` by attaching
+  `Authorization: Basic base64(serialNumber:otp)` to the WS request, the same
+  way `AuthInterceptor` already does for REST.
+- **No brute-force throttling anywhere a serial+OTP pair was checked.**
+  `/api/login`, every Basic-Auth `/api/*` route, the `/ws` upgrade, and the
+  Pi's cloud uplink had no rate limiting. Fixed with a per-source-IP
+  fixed-window limiter (`smarthomeapi/pkg/core/auth/ratelimit.go`): 10 failed
+  attempts / 5 minutes before further attempts from that IP get a 429.
+
+### Open
+
+- **OTP stored in plaintext, `allowBackup="true"`.** `AuthPreferences.kt`
+  keeps the OTP — a long-lived static credential — in an unencrypted
+  DataStore file, and `AndroidManifest.xml` has no `dataExtractionRules`/
+  `fullBackupContent` excluding it from Android's default full-data backup.
+  Extractable via device-to-device transfer, cloud backup, or `adb backup`
+  depending on device/OS config. **Medium** severity — the only open finding
+  that exposes the actual account secret, not just metadata. Fix: exclude
+  the DataStore file from backup (or `allowBackup="false"`), and consider
+  `EncryptedSharedPreferences`/Keystore-backed storage for the OTP.
+- **`usesCleartextTraffic="true"` app-wide.** Permits plain HTTP to any
+  host, not just LAN/dev servers, so a mistyped or MITM'd custom-server URL
+  sends Basic Auth (base64, not encrypted) in the clear with no
+  manifest-level guardrail. **Low-Medium** — doesn't affect default cloud
+  usage (`API_BASE_URL` is `https://`). Fix: scope cleartext via
+  `network_security_config.xml` to private/LAN IP ranges only.
+- **FCM token logged unconditionally.** `SmartHomeFirebaseService.onNewToken`
+  does `Log.d("FCM", "New token generated: $token")` with no
+  `BuildConfig.DEBUG` gate (unlike `NetworkClient`'s logging). **Low** — leaks
+  a push-routing token into production logcat; useless to an attacker without
+  the server's own Firebase service-account key too.
+- **`/api/register` has no rate limit and leaks registration state.**
+  Distinguishes "already registered" from "not recognized" with no
+  throttling, so it's an unauthenticated oracle for enumerating live serial
+  numbers. **Low** — serials aren't secret to begin with. Backend-only, see
+  `smarthomeapi/pkg/core/api/api.go`.
+- **Non-constant-time OTP comparison on the Pi agent.**
+  `smarthome/internal/localauth/localauth.go`'s `Verify` uses `otp ==
+  s.otp`, a timing side-channel (the cloud side is fine — bcrypt is
+  timing-safe). **Low** — requires LAN access plus statistical timing
+  analysis, and is now also rate-limited. Backend-only, tracked in the
+  `smarthome` repo.
 
 ---
 
