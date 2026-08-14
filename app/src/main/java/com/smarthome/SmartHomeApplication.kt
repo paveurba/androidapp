@@ -1,6 +1,7 @@
 package com.smarthome
 
 import android.app.Application
+import com.smarthome.data.AlarmSensorLayoutStore
 import com.smarthome.data.AuthPreferences
 import com.smarthome.data.ProductionAgentStatusRepository
 import com.smarthome.data.ProductionAlarmSensorRepository
@@ -8,6 +9,7 @@ import com.smarthome.data.ProductionAuthRepository
 import com.smarthome.data.ProductionNotificationRepository
 import com.smarthome.data.ProductionSensorRepository
 import com.smarthome.data.ScheduleConfigStore
+import com.smarthome.data.SensorLayoutStore
 import com.smarthome.data.network.NetworkClient
 
 /**
@@ -36,12 +38,20 @@ class SmartHomeApplication : Application() {
         ScheduleConfigStore(applicationContext)
     }
 
+    private val sensorLayoutStore by lazy {
+        SensorLayoutStore(applicationContext)
+    }
+
+    private val alarmSensorLayoutStore by lazy {
+        AlarmSensorLayoutStore(applicationContext)
+    }
+
     val authRepository by lazy {
         ProductionAuthRepository(apiService)
     }
 
     val sensorRepository by lazy {
-        ProductionSensorRepository(apiService, authPreferences, scheduleConfigStore)
+        ProductionSensorRepository(apiService, authPreferences, scheduleConfigStore, sensorLayoutStore)
     }
 
     val notificationRepository by lazy {
@@ -49,7 +59,7 @@ class SmartHomeApplication : Application() {
     }
 
     val alarmSensorRepository by lazy {
-        ProductionAlarmSensorRepository(apiService)
+        ProductionAlarmSensorRepository(apiService, alarmSensorLayoutStore)
     }
 
     val agentStatusRepository by lazy {

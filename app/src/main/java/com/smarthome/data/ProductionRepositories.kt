@@ -3,6 +3,7 @@ package com.smarthome.data
 import com.smarthome.data.network.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocket
@@ -63,6 +64,7 @@ class ProductionSensorRepository(
     private val apiService: ApiService,
     private val authPreferences: AuthPreferences,
     private val scheduleConfigStore: ScheduleConfigStore,
+    private val sensorLayoutStore: SensorLayoutStore,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 ) : SensorRepository {
 
@@ -117,7 +119,16 @@ class ProductionSensorRepository(
             val wsUrl = authPreferences.getEffectiveWebSocketUrl(serialNumber)
             android.util.Log.d("SocketEvent", "Connecting to WebSocket: $wsUrl")
 
-            val request = Request.Builder().url(wsUrl).build()
+            // The server now requires the same Basic Auth on the /ws upgrade
+            // as every REST call (see AuthInterceptor) - without this header
+            // the connection gets a 401 instead of a socket, since the
+            // clientId query param alone is no longer trusted as identity.
+            val otp = authPreferences.otp.first()
+            val requestBuilder = Request.Builder().url(wsUrl)
+            if (!otp.isNullOrBlank()) {
+                requestBuilder.header("Authorization", Credentials.basic(serialNumber, otp))
+            }
+            val request = requestBuilder.build()
 
             // Bail out if we were disconnected (e.g. logout) while suspended above.
             if (expectedGeneration != connectionGeneration) {
@@ -273,6 +284,10 @@ class ProductionSensorRepository(
             val response = apiService.getSensors()
             if (response.isSuccessful) {
                 _sensors.value = response.body()?.member ?: emptyList()
+                // Drops any saved tile position for a sensor that's no
+                // longer live (removed/renamed device) - see
+                // SensorLayoutStore.prune's doc comment.
+                sensorLayoutStore.prune(_sensors.value.map { it.id }.toSet())
             }
         } catch (e: Exception) {}
     }
@@ -351,6 +366,15 @@ class ProductionSensorRepository(
     }
 
     override fun getLocalScheduleConfigs(): Flow<List<LocalScheduleConfig>> = scheduleConfigStore.configs
+
+    override suspend fun clearLocalScheduleConfigs() = scheduleConfigStore.clear()
+
+    override fun getSensorTilePositions(): Flow<List<SensorTilePosition>> = sensorLayoutStore.positions
+
+    override suspend fun swapSensorTilePositions(movedId: String, movedOrder: Int, displacedId: String, displacedOrder: Int) =
+        sensorLayoutStore.swap(movedId, movedOrder, displacedId, displacedOrder)
+
+    override suspend fun clearSensorTileLayout() = sensorLayoutStore.clear()
 
     override suspend fun createSchedule(device: String, fromHour: Int, fromMinute: Int, toHour: Int, toMinute: Int) {
         val config = scheduleConfigStore.add(device, fromHour, fromMinute, toHour, toMinute)
@@ -487,6 +511,7 @@ class ProductionSensorRepository(
 
 class ProductionAlarmSensorRepository(
     private val apiService: ApiService,
+    private val alarmSensorLayoutStore: AlarmSensorLayoutStore,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 ) : AlarmSensorRepository {
 
@@ -499,6 +524,7 @@ class ProductionAlarmSensorRepository(
                     val response = apiService.getAlarmSensors()
                     if (response.isSuccessful) {
                         _alarmSensors.value = response.body()?.member ?: emptyList()
+                        alarmSensorLayoutStore.prune(_alarmSensors.value.map { it.id }.toSet())
                     }
                     // Not successful just leaves the last known value in place, same as
                     // every other repository here - not an error worth surfacing.
@@ -509,6 +535,13 @@ class ProductionAlarmSensorRepository(
     }
 
     override fun getAlarmSensors(): Flow<List<AlarmSensor>> = _alarmSensors.asStateFlow()
+
+    override fun getAlarmSensorTilePositions(): Flow<List<SensorTilePosition>> = alarmSensorLayoutStore.positions
+
+    override suspend fun swapAlarmSensorTilePositions(movedId: String, movedOrder: Int, displacedId: String, displacedOrder: Int) =
+        alarmSensorLayoutStore.swap(movedId, movedOrder, displacedId, displacedOrder)
+
+    override suspend fun clearAlarmSensorTileLayout() = alarmSensorLayoutStore.clear()
 }
 
 class ProductionAgentStatusRepository(

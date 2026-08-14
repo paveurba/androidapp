@@ -164,12 +164,18 @@ The Android app communicates with the **Symfony 8.1 API Platform** backend (`sma
 
 ---
 
-### 2. WebSocket Push Server (`ws://<HOST>:8080/?clientId=<SERIAL_NUMBER>`)
+### 2. WebSocket Push Server (`ws://<HOST>:8080/`)
 
 #### Connection URL Format
 ```
 ws://127.0.0.1:8080/?clientId=SN123456
 ```
+As of versionCode 11 (0.0.7), the upgrade request also requires the same
+`Authorization: Basic base64(serialNumber:otp)` header as the REST API (see
+[`ws.Hub.Handler`](../smarthomeapi/pkg/core/ws/hub.go) in `smarthomeapi`) —
+the server derives the client identity from the verified credential, not
+from `clientId`, which is now cosmetic/ignored. See
+[Security Notes](#-security-notes) below for why.
 
 #### Incoming Event Payload Structure (Server $\rightarrow$ Client)
 ```json

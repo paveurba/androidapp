@@ -2,15 +2,36 @@ package com.smarthome.data
 
 import kotlinx.coroutines.flow.Flow
 
+// pm25/vocIndex are opportunistic: only an air-quality-capable sensor (e.g.
+// an IKEA VINDSTYRKA) reports them - see smarthomeapi's model.Sensor doc
+// comment. Defaults to 0f so a server predating this field (or a Pi agent
+// that hasn't been redeployed yet) deserializes fine instead of crashing
+// Gson, same reasoning as RelaySwitch.schedulable's default below.
 data class TempSensor(
     val id: String,
     val name: String,
     val currentTemp: Float,
     val setTemp: Float,
     val humidity: Float,
+    val pm25: Float = 0f,
+    val vocIndex: Float = 0f,
     val batteryLevel: Int,
     val linkQuality: Int,
     val lastUpdated: Long
+)
+
+// A tile's slot on the sensor dashboard grid, expressed as a dense integer
+// order (0-based) rather than continuous x/y - every visible sensor always
+// occupies exactly one order value in 0 until sensorCount, so tiles can
+// never overlap or end up off-grid: dragging one tile onto another's slot
+// swaps the two (see DashboardCanvas/DraggableTile in ui/dashboard), it
+// doesn't relocate to an arbitrary pixel position between cells. Columns
+// are recomputed from the current screen width every composition, so the
+// same order always reflows into a sensible position across phone/tablet/
+// rotation without needing to store width-relative coordinates at all.
+data class SensorTilePosition(
+    val sensorId: String,
+    val order: Int
 )
 
 data class SensorSchedule(
@@ -106,4 +127,28 @@ interface SensorRepository {
     // remoteId, but keeps device/hours in the local record so re-enabling
     // needs no re-entry.
     suspend fun setScheduleEnabled(localId: String, enabled: Boolean)
+
+    // Wipes all locally-persisted schedule configs. Call on logout/account
+    // switch - this store isn't scoped to the logged-in serial number, so
+    // without this, schedules from the previous account bleed into whichever
+    // account logs in next (see ScheduleConfigStore.clear's doc comment).
+    suspend fun clearLocalScheduleConfigs()
+
+    // --- sensor dashboard tile layout (see SensorTilePosition's doc
+    // comment for why this is a dense integer order, not x/y) ---
+
+    fun getSensorTilePositions(): Flow<List<SensorTilePosition>>
+
+    // Persists the result of dragging one tile onto another's slot: the two
+    // swap orders. There's no single-tile "move to here" - every valid drop
+    // target is always some other tile's slot (see DashboardCanvas), so a
+    // drag always exchanges two tiles' positions atomically rather than
+    // leaving a moment where two tiles could transiently share an order.
+    suspend fun swapSensorTilePositions(movedId: String, movedOrder: Int, displacedId: String, displacedOrder: Int)
+
+    // Wipes all locally-persisted tile positions. Used by both the
+    // dashboard's "Reset Layout" action and logout/account switch - like
+    // the schedule configs above, this store isn't scoped to the logged-in
+    // serial number.
+    suspend fun clearSensorTileLayout()
 }

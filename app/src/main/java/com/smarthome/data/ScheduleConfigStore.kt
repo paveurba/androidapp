@@ -87,4 +87,14 @@ class ScheduleConfigStore(private val context: Context) {
     suspend fun update(localId: String, transform: (LocalScheduleConfig) -> LocalScheduleConfig) {
         mutate { list -> list.map { if (it.localId == localId) transform(it) else it } }
     }
+
+    // Wipes every locally-persisted config. This store isn't scoped to the
+    // logged-in serial number, so without calling this on logout, schedules
+    // from one account bleed into whichever account logs in next: their
+    // remoteIds won't match the new account's server-side list, so
+    // reconcileSchedules() doesn't delete them, just flips them to
+    // disabled - leaving phantom schedules the new account never created.
+    suspend fun clear() {
+        context.scheduleDataStore.edit { prefs -> prefs.remove(SCHEDULE_CONFIGS) }
+    }
 }
