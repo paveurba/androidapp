@@ -31,3 +31,10 @@ google-services.json
 
 # Captures the "Task" file if it was temporary
 Task
+
+# Local planning/spec docs written with AI assistance - not part of the
+# product, never pushed (see chat history for context instead).
+ai_docs/
+
+# Signing/release artifacts that shouldn't be committed
+release_certificate.pem
