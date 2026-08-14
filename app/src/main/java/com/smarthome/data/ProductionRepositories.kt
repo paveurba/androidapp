@@ -3,6 +3,7 @@ package com.smarthome.data
 import com.smarthome.data.network.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocket
@@ -118,7 +119,16 @@ class ProductionSensorRepository(
             val wsUrl = authPreferences.getEffectiveWebSocketUrl(serialNumber)
             android.util.Log.d("SocketEvent", "Connecting to WebSocket: $wsUrl")
 
-            val request = Request.Builder().url(wsUrl).build()
+            // The server now requires the same Basic Auth on the /ws upgrade
+            // as every REST call (see AuthInterceptor) - without this header
+            // the connection gets a 401 instead of a socket, since the
+            // clientId query param alone is no longer trusted as identity.
+            val otp = authPreferences.otp.first()
+            val requestBuilder = Request.Builder().url(wsUrl)
+            if (!otp.isNullOrBlank()) {
+                requestBuilder.header("Authorization", Credentials.basic(serialNumber, otp))
+            }
+            val request = requestBuilder.build()
 
             // Bail out if we were disconnected (e.g. logout) while suspended above.
             if (expectedGeneration != connectionGeneration) {
