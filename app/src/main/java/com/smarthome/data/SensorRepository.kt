@@ -69,7 +69,38 @@ data class Relay(
     val id: String,
     val name: String,
     val switches: List<RelaySwitch>,
-    val displayInverted: Boolean = false
+    val displayInverted: Boolean = false,
+    val normalOpen: Boolean = false
+)
+
+data class PumpConfig(
+    val relay: String = "",
+    val switch: String = "",
+    val enabled: Boolean = false
+)
+
+data class GardenPort(
+    val relay: String = "",
+    val switch: String = ""
+)
+
+data class GardenConfig(
+    val ports: List<GardenPort> = emptyList(),
+    val defaultLoopCount: Int = 10,
+    val defaultInterval: Int = 180
+)
+
+data class GardenStatus(
+    val running: Boolean = false,
+    val currentZone: String = "",
+    val currentLoop: Int = 0,
+    val totalLoops: Int = 0,
+    val remainingSecs: Int = 0
+)
+
+data class GardenResponse(
+    val config: GardenConfig = GardenConfig(),
+    val status: GardenStatus = GardenStatus()
 )
 
 // LocalScheduleConfig is Android's own record of a schedule's
@@ -100,6 +131,25 @@ interface SensorRepository {
     suspend fun updateSetTemp(sensorId: String, newTemp: Float)
     fun getRelays(): Flow<List<Relay>>
     suspend fun toggleRelaySwitch(relayId: String, switchId: String)
+
+    // --- relay & switch CRUD ---
+    suspend fun updateRelay(relayId: String, name: String? = null, displayInverted: Boolean? = null, normalOpen: Boolean? = null)
+    suspend fun deleteRelay(relayId: String)
+    suspend fun createRelaySwitch(relayId: String, switchId: String, label: String, schedulable: Boolean = false)
+    suspend fun updateRelaySwitch(relayId: String, switchId: String, label: String? = null, schedulable: Boolean? = null)
+    suspend fun deleteRelaySwitch(relayId: String, switchId: String)
+
+    // --- heating pump settings ---
+    fun getPumpConfig(): Flow<PumpConfig>
+    suspend fun fetchPumpConfig(): Result<PumpConfig>
+    suspend fun updatePumpConfig(relay: String? = null, switch: String? = null, enabled: Boolean? = null)
+
+    // --- garden watering ---
+    fun getGarden(): Flow<GardenResponse>
+    suspend fun fetchGarden(): Result<GardenResponse>
+    suspend fun updateGardenConfig(ports: List<GardenPort>? = null, loopCount: Int? = null, interval: Int? = null)
+    suspend fun startGarden(loopCount: Int = 0, interval: Int = 0)
+    suspend fun stopGarden()
 
     // --- schedules (see LocalScheduleConfig's doc comment for why the UI
     // drives entirely off this instead of a raw SensorSchedule list) ---

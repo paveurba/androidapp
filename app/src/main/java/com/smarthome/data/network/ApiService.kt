@@ -45,6 +45,25 @@ interface ApiService {
     @GET("relays")
     suspend fun getRelays(): Response<HydraCollection<Relay>>
 
+    @PATCH("relays/{id}")
+    suspend fun updateRelay(@Path("id") id: String, @Body request: Map<String, @JvmSuppressWildcards Any>): Response<Relay>
+
+    @DELETE("relays/{id}")
+    suspend fun deleteRelay(@Path("id") id: String): Response<Unit>
+
+    @POST("relays/{relayId}/switches")
+    suspend fun createRelaySwitch(@Path("relayId") relayId: String, @Body request: Map<String, @JvmSuppressWildcards Any>): Response<RelaySwitch>
+
+    @PATCH("relays/{relayId}/switches/{switchId}")
+    suspend fun updateRelaySwitch(
+        @Path("relayId") relayId: String,
+        @Path("switchId") switchId: String,
+        @Body request: Map<String, @JvmSuppressWildcards Any>
+    ): Response<RelaySwitch>
+
+    @DELETE("relays/{relayId}/switches/{switchId}")
+    suspend fun deleteRelaySwitch(@Path("relayId") relayId: String, @Path("switchId") switchId: String): Response<Unit>
+
     // Server returns the real resulting isOn (not just success) - this is a
     // *toggle* (flip whatever the server currently has), so our own
     // optimistic guess at the pre-toggle state can be wrong (e.g. it hasn't
@@ -52,6 +71,26 @@ interface ApiService {
     // ProductionRepositories.kt's toggleRelaySwitch.
     @POST("relays/{relayId}/toggle/{switchId}")
     suspend fun toggleRelay(@Path("relayId") relayId: String, @Path("switchId") switchId: String): Response<ToggleRelayResponse>
+
+    // --- heating pump settings ---
+    @GET("settings/pump")
+    suspend fun getPumpConfig(): Response<PumpConfig>
+
+    @PATCH("settings/pump")
+    suspend fun updatePumpConfig(@Body request: Map<String, @JvmSuppressWildcards Any>): Response<PumpConfig>
+
+    // --- garden watering ---
+    @GET("garden")
+    suspend fun getGarden(): Response<GardenResponse>
+
+    @PATCH("garden")
+    suspend fun updateGardenConfig(@Body request: Map<String, @JvmSuppressWildcards Any>): Response<GardenResponse>
+
+    @POST("garden/start")
+    suspend fun startGarden(@Body request: Map<String, Int>): Response<Unit>
+
+    @POST("garden/stop")
+    suspend fun stopGarden(): Response<Unit>
 
     // Shared with the cloud server, same as everything else here (see
     // AlarmSensorRepository).

@@ -76,6 +76,8 @@ class ProductionSensorRepository(
     // comment for why getLocalScheduleConfigs() is the source of truth there.
     private val _schedules = MutableStateFlow<List<SensorSchedule>>(emptyList())
     private val _relays = MutableStateFlow<List<Relay>>(emptyList())
+    private val _pumpConfig = MutableStateFlow(PumpConfig())
+    private val _garden = MutableStateFlow(GardenResponse())
 
     private var webSocket: WebSocket? = null
     private val okHttpClient = OkHttpClient()
@@ -277,6 +279,18 @@ class ProductionSensorRepository(
                 delay(30000)
             }
         }
+        scope.launch {
+            while (isActive) {
+                fetchPumpConfig()
+                delay(15000)
+            }
+        }
+        scope.launch {
+            while (isActive) {
+                fetchGarden()
+                delay(5000)
+            }
+        }
     }
 
     private suspend fun fetchSensors() {
@@ -309,6 +323,34 @@ class ProductionSensorRepository(
                 reconcileSchedules()
             }
         } catch (e: Exception) {}
+    }
+
+    override suspend fun fetchPumpConfig(): Result<PumpConfig> {
+        return try {
+            val response = apiService.getPumpConfig()
+            if (response.isSuccessful && response.body() != null) {
+                _pumpConfig.value = response.body()!!
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception(apiErrorMessage(response, "Failed to get pump config")))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun fetchGarden(): Result<GardenResponse> {
+        return try {
+            val response = apiService.getGarden()
+            if (response.isSuccessful && response.body() != null) {
+                _garden.value = response.body()!!
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception(apiErrorMessage(response, "Failed to get garden status")))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     // Keeps LocalScheduleConfig in sync with the server's own schedule
@@ -505,6 +547,109 @@ class ProductionSensorRepository(
                 currentRelays[relayIndex] = relay.copy(switches = switches)
                 _relays.value = currentRelays
             }
+        }
+    }
+
+    override suspend fun updateRelay(relayId: String, name: String?, displayInverted: Boolean?, normalOpen: Boolean?) {
+        val body = mutableMapOf<String, Any>()
+        if (name != null) body["name"] = name
+        if (displayInverted != null) body["displayInverted"] = displayInverted
+        if (normalOpen != null) body["normalOpen"] = normalOpen
+        val response = apiService.updateRelay(relayId, body)
+        if (response.isSuccessful) {
+            fetchRelays()
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to update relay"))
+        }
+    }
+
+    override suspend fun deleteRelay(relayId: String) {
+        val response = apiService.deleteRelay(relayId)
+        if (response.isSuccessful) {
+            fetchRelays()
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to delete relay"))
+        }
+    }
+
+    override suspend fun createRelaySwitch(relayId: String, switchId: String, label: String, schedulable: Boolean) {
+        val body = mapOf("id" to switchId, "label" to label, "schedulable" to schedulable)
+        val response = apiService.createRelaySwitch(relayId, body)
+        if (response.isSuccessful) {
+            fetchRelays()
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to add switch channel"))
+        }
+    }
+
+    override suspend fun updateRelaySwitch(relayId: String, switchId: String, label: String?, schedulable: Boolean?) {
+        val body = mutableMapOf<String, Any>()
+        if (label != null) body["label"] = label
+        if (schedulable != null) body["schedulable"] = schedulable
+        val response = apiService.updateRelaySwitch(relayId, switchId, body)
+        if (response.isSuccessful) {
+            fetchRelays()
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to update switch channel"))
+        }
+    }
+
+    override suspend fun deleteRelaySwitch(relayId: String, switchId: String) {
+        val response = apiService.deleteRelaySwitch(relayId, switchId)
+        if (response.isSuccessful) {
+            fetchRelays()
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to delete switch channel"))
+        }
+    }
+
+    override fun getPumpConfig(): Flow<PumpConfig> = _pumpConfig.asStateFlow()
+
+    override suspend fun updatePumpConfig(relay: String?, switch: String?, enabled: Boolean?) {
+        val body = mutableMapOf<String, Any>()
+        if (relay != null) body["relay"] = relay
+        if (switch != null) body["switch"] = switch
+        if (enabled != null) body["enabled"] = enabled
+        val response = apiService.updatePumpConfig(body)
+        if (response.isSuccessful && response.body() != null) {
+            _pumpConfig.value = response.body()!!
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to update pump config"))
+        }
+    }
+
+    override fun getGarden(): Flow<GardenResponse> = _garden.asStateFlow()
+
+    override suspend fun updateGardenConfig(ports: List<GardenPort>?, loopCount: Int?, interval: Int?) {
+        val body = mutableMapOf<String, Any>()
+        if (ports != null) {
+            body["ports"] = ports.map { mapOf("relay" to it.relay, "switch" to it.switch) }
+        }
+        if (loopCount != null) body["defaultLoopCount"] = loopCount
+        if (interval != null) body["defaultInterval"] = interval
+        val response = apiService.updateGardenConfig(body)
+        if (response.isSuccessful && response.body() != null) {
+            _garden.value = response.body()!!
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to update garden config"))
+        }
+    }
+
+    override suspend fun startGarden(loopCount: Int, interval: Int) {
+        val response = apiService.startGarden(mapOf("loopCount" to loopCount, "interval" to interval))
+        if (response.isSuccessful) {
+            fetchGarden()
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to start garden watering"))
+        }
+    }
+
+    override suspend fun stopGarden() {
+        val response = apiService.stopGarden()
+        if (response.isSuccessful) {
+            fetchGarden()
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to stop garden watering"))
         }
     }
 }
