@@ -176,8 +176,10 @@ fun <T> DashboardCanvas(
                             yDp = yDp,
                             onMoved = { finalXDp, finalYDp ->
                                 val cell = tileSize + TILE_GAP
-                                val col = (finalXDp / cell).roundToInt().coerceIn(0, columns - 1)
-                                val row = (finalYDp / cell).roundToInt().coerceAtLeast(0)
+                                val centerX = finalXDp + tileSize / 2
+                                val centerY = finalYDp + tileSize / 2
+                                val col = ((centerX - TILE_GAP) / cell).toInt().coerceIn(0, columns - 1)
+                                val row = ((centerY - TILE_GAP) / cell).toInt().coerceAtLeast(0)
                                 val targetOrder = (row * columns + col).coerceIn(0, items.size - 1)
                                 if (targetOrder != order) {
                                     val displacedId = orders.entries.find { it.value == targetOrder }?.key
@@ -329,16 +331,26 @@ private fun DraggableTile(
                             isDragging = false
                             val finalXDp = with(density) { (basePosition.value.x + dragOffsetPx.x).toDp() }
                             val finalYDp = with(density) { (basePosition.value.y + dragOffsetPx.y).toDp() }
+                            scope.launch {
+                                basePosition.snapTo(basePosition.value + dragOffsetPx)
+                                dragOffsetPx = Offset.Zero
+                                basePosition.animateTo(
+                                    Offset(with(density) { xDp.toPx() }, with(density) { yDp.toPx() }),
+                                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                                )
+                            }
                             onMoved(finalXDp, finalYDp)
                         },
-                        // No onMoved call here, so xDp/yDp never change -
-                        // the usual LaunchedEffect(xDp, yDp) reset never
-                        // fires. Reset dragOffsetPx directly instead, or
-                        // the tile would stay stuck wherever the cancelled
-                        // drag left it.
                         onDragCancel = {
                             isDragging = false
-                            dragOffsetPx = Offset.Zero
+                            scope.launch {
+                                basePosition.snapTo(basePosition.value + dragOffsetPx)
+                                dragOffsetPx = Offset.Zero
+                                basePosition.animateTo(
+                                    Offset(with(density) { xDp.toPx() }, with(density) { yDp.toPx() }),
+                                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                                )
+                            }
                         }
                     )
                 }
