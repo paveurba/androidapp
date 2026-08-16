@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -156,6 +157,10 @@ fun RelaysScreen(
                     }
                 }
 
+                val physicalRelays = remember(relays) { relays.filter { it.id != "devices" } }
+                val devicesRelay = remember(relays) { relays.find { it.id == "devices" } }
+                val deviceSwitches = remember(devicesRelay) { devicesRelay?.switches ?: emptyList() }
+
                 if (isTablet) {
                     LazyVerticalStaggeredGrid(
                         columns = StaggeredGridCells.Adaptive(minSize = 340.dp),
@@ -164,7 +169,22 @@ fun RelaysScreen(
                         verticalItemSpacing = 16.dp,
                         contentPadding = PaddingValues(bottom = 80.dp)
                     ) {
-                        items(relays, key = { it.id }) { relay ->
+                        if (deviceSwitches.isNotEmpty() && devicesRelay != null) {
+                            items(deviceSwitches, key = { "device_${it.id}" }) { sw ->
+                                DeviceCard(
+                                    relay = devicesRelay,
+                                    switch = sw,
+                                    onToggle = {
+                                        scope.launch {
+                                            sensorRepository.toggleRelaySwitch(devicesRelay.id, sw.id)
+                                        }
+                                    },
+                                    onEdit = { editingChannel = Pair(devicesRelay, sw) }
+                                )
+                            }
+                        }
+
+                        items(physicalRelays, key = { it.id }) { relay ->
                             RelayCard(
                                 relay = relay,
                                 sensors = sensors,
@@ -185,7 +205,22 @@ fun RelaysScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(bottom = 80.dp)
                     ) {
-                        items(relays, key = { it.id }) { relay ->
+                        if (deviceSwitches.isNotEmpty() && devicesRelay != null) {
+                            items(deviceSwitches, key = { "device_${it.id}" }) { sw ->
+                                DeviceCard(
+                                    relay = devicesRelay,
+                                    switch = sw,
+                                    onToggle = {
+                                        scope.launch {
+                                            sensorRepository.toggleRelaySwitch(devicesRelay.id, sw.id)
+                                        }
+                                    },
+                                    onEdit = { editingChannel = Pair(devicesRelay, sw) }
+                                )
+                            }
+                        }
+
+                        items(physicalRelays, key = { it.id }) { relay ->
                             RelayCard(
                                 relay = relay,
                                 sensors = sensors,
@@ -362,6 +397,114 @@ fun RelaysScreen(
 }
 
 @Composable
+fun DeviceCard(
+    relay: Relay,
+    switch: RelaySwitch,
+    onToggle: () -> Unit,
+    onEdit: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val displayIsOn = switch.isOn xor relay.displayInverted
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (displayIsOn)
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+            else
+                MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onEdit() },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = if (displayIsOn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (switch.schedulable) Icons.Default.DateRange else Icons.Default.Info,
+                            contentDescription = null,
+                            tint = if (displayIsOn) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = switch.label.ifBlank { switch.id },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        Text(
+                            text = "Device: ${switch.id}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (switch.schedulable) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = "Schedulable",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "Edit Device",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Switch(
+                    checked = displayIsOn,
+                    onCheckedChange = { onToggle() },
+                    modifier = Modifier.scale(SWITCH_SCALE)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun RelayCard(
     relay: Relay,
     sensors: List<TempSensor> = emptyList(),
@@ -372,7 +515,7 @@ fun RelayCard(
 ) {
     val isPhysical = relay.id != "devices"
 
-    val attachedSensorName = relay.sensorName?.ifBlank { null } ?: if (relay.id == "tasmota3") "Outdoor" else null
+    val attachedSensorName = relay.sensorName?.ifBlank { null }
     val attachedSensor = remember(attachedSensorName, sensors) {
         if (!attachedSensorName.isNullOrBlank()) {
             sensors.find { it.id.equals(attachedSensorName, ignoreCase = true) || it.name.equals(attachedSensorName, ignoreCase = true) }
@@ -670,7 +813,7 @@ fun EditRelayModuleDialog(
     onDelete: () -> Unit
 ) {
     var name by remember { mutableStateOf(relay.name) }
-    var sensorName by remember { mutableStateOf(relay.sensorName ?: if (relay.id == "tasmota3") "Outdoor" else "") }
+    var sensorName by remember { mutableStateOf(relay.sensorName.orEmpty()) }
     var displayInverted by remember { mutableStateOf(relay.displayInverted) }
     var normalOpen by remember { mutableStateOf(relay.normalOpen) }
     var showDeleteConfirm by remember { mutableStateOf(false) }

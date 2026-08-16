@@ -15,8 +15,8 @@ android {
         applicationId = "com.smarthome.lv"
         minSdk = 24
         targetSdk = 36
-        versionCode = 13
-        versionName = "0.0.9"
+        versionCode = 14
+        versionName = "0.0.10"
 
         val envFile = rootProject.file(".env")
         if (envFile.exists()) {
