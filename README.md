@@ -7,7 +7,7 @@ A modern, reactive Smart Home management application built with **Jetpack Compos
 ## 🚀 Key Features & Implementation Status
 
 ### 1. Dashboard (Sensors)
-- **Real-Time Monitoring**: View current temperature, humidity, battery levels, and link quality powered by live Symfony API and WebSocket updates.
+- **Real-Time Monitoring**: View current temperature, humidity, battery levels, and link quality powered by live API and WebSocket updates.
 - **Thermostat Control**: Interactive circular dial to adjust the "Set" temperature (Range: 0°C to 30°C).
 - **Unit Conversion**: Toggle between Celsius (°C) and Fahrenheit (°F) across the entire app.
 - **Visual Alerts**: 
@@ -75,7 +75,7 @@ With the emulator running:
 ./gradlew installDebug
 
 # Launch main activity
-adb shell am start -n com.upasmarthome.app/com.smarthome.MainActivity
+adb shell am start -n com.smarthome.lv/com.smarthome.MainActivity
 ```
 
 ### C. Installing on a Physical Android Phone
@@ -106,7 +106,7 @@ adb shell am start -n com.upasmarthome.app/com.smarthome.MainActivity
   ```bash
   emulator -avd Pixel_Tablet
   ./gradlew installDebug
-  adb shell am start -n com.upasmarthome.app/com.smarthome.MainActivity
+  adb shell am start -n com.smarthome.lv/com.smarthome.MainActivity
   ```
 
 ---
@@ -130,7 +130,7 @@ adb shell am start -n com.upasmarthome.app/com.smarthome.MainActivity
      cp .env.example .env
      ```
 3. **Firebase Configuration**:
-   - Package name: `com.upasmarthome.app`.
+   - Package name: `com.smarthome.lv`.
    - Copy `app/google-services.json.example` to `app/google-services.json` and insert your Firebase credentials:
      ```bash
      cp app/google-services.json.example app/google-services.json
@@ -142,42 +142,53 @@ adb shell am start -n com.upasmarthome.app/com.smarthome.MainActivity
 
 ---
 
-## 🔗 Backend API & WebSocket Data Contracts
+## 🔗 Backend API & WebSocket
 
-The Android app communicates with the **Symfony 8.1 API Platform** backend (`smarthomeapi`) via REST HTTP endpoints and a real-time WebSocket push listener.
+The Android app talks to the `smarthomeapi` backend (a single Go server) over
+two channels on the same host: a REST API under `/api`, and a WebSocket push
+channel for live updates. In production both live behind the same TLS host,
+`https://upanet.org`; a custom/self-hosted backend is also supported (see
+[Custom API & WebSocket Server Mode](#5-custom-api--websocket-server-mode-local--offline-endpoint)
+above) as long as it implements the same contract.
 
-### 1. REST API Endpoints (`http://<HOST>:8000/api/`)
+### 1. REST API — see the live docs
 
-| Method | Endpoint | Description | Payload / Query |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/login` | Authenticates device credentials | `{"serialNumber": "SN123456", "otp": "12345678"}` |
-| `POST` | `/api/register` | Registers a new device serial number | `{"serialNumber": "SN123456", "otp": "12345678"}` |
-| `GET` | `/api/sensors` | Fetches all smart temperature & humidity sensors | Auth: Basic (`serialNumber:otp`) |
-| `PATCH` | `/api/sensors/{id}` | Updates setpoint temperature for a sensor | `{"setTemp": 22.5}` |
-| `GET` | `/api/relays` | Fetches all multi-channel relay modules | Auth: Basic (`serialNumber:otp`) |
-| `POST` | `/api/relays/{relayId}/toggle/{switchId}` | Toggles state of a specific switch | Auth: Basic (`serialNumber:otp`) |
-| `GET` | `/api/schedules` | Fetches active device operation schedules | Auth: Basic (`serialNumber:otp`) |
-| `PATCH` | `/api/schedules/{id}` | Updates schedule time window | `{"fromHour": 7, "toHour": 9}` |
-| `GET` | `/api/notifications` | Fetches inbox notifications | Auth: Basic (`serialNumber:otp`) |
-| `PATCH` | `/api/notifications/{id}` | Marks a notification as read | `{"isRead": true}` |
-| `DELETE` | `/api/notifications` | Clears all notifications in inbox | Auth: Basic (`serialNumber:otp`) |
+Rather than duplicate an endpoint table here that inevitably drifts out of
+sync with the server, the backend publishes its own authoritative API
+reference:
 
----
+- **Interactive Swagger UI**: https://upanet.org/docs/
+- **OpenAPI 3.0 spec (JSON)**: https://upanet.org/openapi.json
 
-### 2. WebSocket Push Server (`ws://<HOST>:8080/`)
+Both describe every `/api/*` route, request/response schema, and auth
+requirement currently deployed. Endpoints are grouped by resource: `sensors`,
+`alarm-sensors`, `relays` (including per-channel switches), `schedules`,
+`notifications`, `pairing` (Zigbee discovery/join), and `login`/`register`.
 
-#### Connection URL Format
-```
-ws://127.0.0.1:8080/?clientId=SN123456
-```
-As of versionCode 11 (0.0.7), the upgrade request also requires the same
-`Authorization: Basic base64(serialNumber:otp)` header as the REST API (see
-[`ws.Hub.Handler`](../smarthomeapi/pkg/core/ws/hub.go) in `smarthomeapi`) —
-the server derives the client identity from the verified credential, not
-from `clientId`, which is now cosmetic/ignored. See
-[Security Notes](#-security-notes) below for why.
+**Auth**: every `/api/*` request (except `login`/`register`) uses HTTP Basic
+Auth with the device's serial number as username and its OTP as password —
+there's no bearer/JWT token in play. `POST /api/login` and
+`POST /api/register` just validate that pair and return a status message;
+the app doesn't store or replay anything from the response.
 
-#### Incoming Event Payload Structure (Server $\rightarrow$ Client)
+### 2. WebSocket Push Channel
+
+#### Connection URL
+
+The effective WebSocket URL is derived from the active API base URL
+(`AuthPreferences.getEffectiveWebSocketUrl`):
+
+| API base URL scheme | WebSocket URL used |
+| :--- | :--- |
+| `https://` (cloud/production) | `wss://<host>/ws?clientId=<serialNumber>` |
+| `http://` (local/custom dev server) | `ws://<host>:8080/?clientId=<serialNumber>` |
+
+The upgrade request requires the same `Authorization: Basic
+base64(serialNumber:otp)` header as the REST API — the server identifies the
+connection from the verified credential, not from `clientId`, which is
+cosmetic.
+
+#### Message Format (Server → Client)
 ```json
 {
   "event": "<EVENT_NAME>",
@@ -185,110 +196,22 @@ from `clientId`, which is now cosmetic/ignored. See
 }
 ```
 
-#### Supported Events & Client Handling
+#### Events
 
-| Event Name | Example `data` Payload | App Action Taken |
-| :--- | :--- | :--- |
-| `refresh_sensors` | `{"sensorId": "1", "setTemp": 22.5}` | 0ms immediate in-memory setpoint update + background `GET /api/sensors` fetch |
-| `refresh_relays` | `{"relayId": "r1", "switchId": "rs1", "isOn": true}` | 0ms immediate in-memory switch state toggle + background `GET /api/relays` fetch |
-| `refresh_schedules` | `{"scheduleId": "s1"}` | Background `GET /api/schedules` fetch |
-| `refresh_notifications` | `{}` | Background `GET /api/notifications` fetch |
-| `refresh_all` | `{}` | Refreshes all 4 data domains simultaneously |
+| Event Name | Fires On | Example `data` | App Action |
+| :--- | :--- | :--- | :--- |
+| `refresh_sensors` | Setpoint change, rename, or delete | `{"sensorId": "1", "setTemp": 22.5}` | Immediate in-memory update + background `GET /api/sensors` |
+| `refresh_relays` | Switch toggle, relay/switch create, patch, or delete | `{"relayId": "r1", "switchId": "rs1", "isOn": true}` | Immediate in-memory update + background `GET /api/relays` |
+| `refresh_schedules` | Schedule created, updated, or deleted | `{"scheduleId": "s1", "fromHour": 7, "fromMinute": 0, "toHour": 9, "toMinute": 0}` | Background `GET /api/schedules` |
+| `refresh_notifications` | New notification, mark-read, or clear-all | `{"notificationId": "n1"}` | Background `GET /api/notifications` |
+| `refresh_settings` | Pump configuration changed | `{"setting": "pump"}` | Background settings re-fetch |
+| `refresh_garden` | Garden watering configuration changed | `{}` | Background garden config re-fetch |
+| `refresh_pairing` | Permit-join started/stopped, or a device is discovered/confirmed while pairing | `{"deviceId": "d1"}` | Background `GET /api/pairing/*` re-fetch |
+| `refresh_all` | Full backend resync (e.g. a Pi agent reconnects) | `{}` | Refreshes every data domain |
 
----
-
-### 3. API Data Models & Field Specifications
-
-#### A. Sensor Resource (`TempSensor`)
-Represents smart temperature and humidity sensors in the system.
-```json
-{
-  "id": "1",
-  "name": "Living Room",
-  "currentTemp": 22.5,
-  "setTemp": 22.0,
-  "humidity": 45.0,
-  "batteryLevel": 85,
-  "linkQuality": 200,
-  "lastUpdated": 1722019200000
-}
-```
-- `id` (`String`): Unique identifier of the sensor entity.
-- `name` (`String`): Human-readable room/device display name.
-- `currentTemp` (`Float`): Live measured temperature in Celsius.
-- `setTemp` (`Float`): Desired target thermostat setpoint temperature in Celsius.
-- `humidity` (`Float`): Relative humidity percentage (`0` - `100%`).
-- `batteryLevel` (`Int`): Remaining battery percentage (`0` - `100%`). Below `20%` triggers a low-battery alert.
-- `linkQuality` (`Int`): Signal link quality indicator (LQI: `0` - `255`).
-- `lastUpdated` (`Long`): Millisecond Unix timestamp of last received reading. Older than 1 hour triggers a stale data alert.
-
-#### B. Relay Module Resource (`Relay` & `RelaySwitch`)
-Represents multi-channel switch relay hardware modules.
-```json
-{
-  "id": "r1",
-  "name": "Living Room Relay",
-  "switches": [
-    { "id": "rs1", "label": "Main Light", "isOn": true },
-    { "id": "rs2", "label": "Socket 1", "isOn": false }
-  ]
-}
-```
-- `id` (`String`): Unique identifier of the relay controller module.
-- `name` (`String`): Display name of the relay controller.
-- `switches` (`Array<RelaySwitch>`): List of individual switch channels (`1` to `16` channels).
-  - `id` (`String`): Unique channel ID.
-  - `label` (`String`): Label describing connected appliance (e.g. *"Main Light"*).
-  - `isOn` (`Boolean`): Active state (`true` = ON, `false` = OFF).
-
-#### C. Schedule Resource (`SensorSchedule`)
-Defines automated active operation windows for devices.
-```json
-{
-  "id": "s1",
-  "sensorName": "Main Heater",
-  "fromHour": 7,
-  "toHour": 9
-}
-```
-- `id` (`String`): Unique schedule ID.
-- `sensorName` (`String`): Name of target hardware device or zone.
-- `fromHour` (`Int`): Operation start hour (`0` to `23`).
-- `toHour` (`Int`): Operation end hour (`0` to `23`).
-
-#### D. Notification Resource (`AppNotification`)
-System inbox alerts and push notifications.
-```json
-{
-  "id": "1",
-  "title": "Security Alert",
-  "message": "Motion detected in Living Room at 2:00 AM.",
-  "timestamp": 1722015600000,
-  "isRead": false
-}
-```
-- `id` (`String`): Unique notification ID.
-- `title` (`String`): Alert title.
-- `message` (`String`): Detailed alert message body.
-- `timestamp` (`Long`): Millisecond Unix timestamp of alert creation.
-- `isRead` (`Boolean`): Read/Unread inbox status flag.
-
-#### E. Authentication Models (`LoginRequest` & `LoginResponse`)
-```json
-// Login / Register Request Body
-{
-  "serialNumber": "SN123456",
-  "otp": "12345678"
-}
-
-// Login Response Body
-{
-  "token": "mock_jwt_token_SN123456"
-}
-```
-- `serialNumber` (`String`): Registered device serial number.
-- `otp` (`String`): 8-digit numeric one-time authorization PIN.
-- `token` (`String`): JWT Bearer authentication token.
+Alarm sensors (contact/occupancy/water-leak) are intentionally **not** pushed
+over the WebSocket — MQTT readings arrive too frequently for that — the app
+polls `GET /api/alarm-sensors` instead.
 
 ---
 
@@ -306,5 +229,5 @@ System inbox alerts and push notifications.
 
 ## 📡 Sending Push Notifications
 1. Locate the **Device Token** in Logcat (filter by `FCM`).
-2. Send test notification via Firebase Console or cURL to the Symfony API.
+2. Send test notification via Firebase Console or cURL to the backend API.
 3. The app receives and displays system alerts in real-time.
