@@ -83,13 +83,16 @@ fun RelaysScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .height(IntrinsicSize.Min)
                         .padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     // Heating Pump Button / Card
                     OutlinedCard(
                         onClick = { showPumpDialog = true },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
                         colors = CardDefaults.outlinedCardColors(
                             containerColor = if (pumpConfig.enabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surface
                         )
@@ -97,26 +100,35 @@ fun RelaysScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
+                                .fillMaxHeight()
+                                .padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.Center
+                            ) {
                                 Text(
                                     text = "Heating Pump",
                                     style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = if (pumpConfig.enabled && pumpConfig.relay.isNotBlank()) "${pumpConfig.relay}/${pumpConfig.switch} (Active)" else "Disabled",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (pumpConfig.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (pumpConfig.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                             Icon(
                                 Icons.Default.Settings,
                                 contentDescription = "Configure Pump",
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -124,7 +136,9 @@ fun RelaysScreen(
                     // Garden Watering Button / Card
                     OutlinedCard(
                         onClick = { showGardenDialog = true },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
                         colors = CardDefaults.outlinedCardColors(
                             containerColor = if (garden.status.running) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surface
                         )
@@ -132,26 +146,35 @@ fun RelaysScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
+                                .fillMaxHeight()
+                                .padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.Center
+                            ) {
                                 Text(
                                     text = "Garden Watering",
                                     style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = if (garden.status.running) "Watering Loop ${garden.status.currentLoop}/${garden.status.totalLoops}" else "${garden.config.ports.size} Zones configured",
+                                    text = if (garden.status.running) "Loop ${garden.status.currentLoop}/${garden.status.totalLoops}" else "${garden.config.ports.size} Zones configured",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (garden.status.running) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (garden.status.running) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                             Icon(
                                 if (garden.status.running) Icons.Default.PlayArrow else Icons.Default.Settings,
                                 contentDescription = "Garden Watering",
-                                tint = MaterialTheme.colorScheme.secondary
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
