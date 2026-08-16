@@ -12,7 +12,8 @@ import kotlinx.coroutines.flow.Flow
  */
 data class AlarmSensor(
     val id: String,
-    val kind: String, // "contact" | "occupancy" | "water_leak"
+    val name: String = "",
+    val kind: String, // "contact" | "occupancy" | "water_leak" | "vibration"
     val triggered: Boolean,
     val batteryLevel: Int,
     val linkQuality: Int,
@@ -29,6 +30,8 @@ data class AlarmSensor(
  */
 interface AlarmSensorRepository {
     fun getAlarmSensors(): Flow<List<AlarmSensor>>
+    suspend fun updateAlarmSensorName(sensorId: String, newName: String)
+    suspend fun deleteAlarmSensor(sensorId: String)
 
     // --- alarm-sensor dashboard tile layout, same idea as
     // SensorRepository's sensor tile layout (see SensorTilePosition's doc

@@ -2,21 +2,32 @@ package com.smarthome.ui.dashboard
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.smarthome.data.AlarmSensor
 import com.smarthome.data.AlarmSensorRepository
+import com.smarthome.data.SensorTilePosition
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // Matches config.SensorKind on the agent - anything else is shown as-is,
 // so an unrecognized future kind still renders instead of disappearing.
@@ -44,15 +55,13 @@ private fun clearLabel(kind: String): String = when (kind) {
     else -> "OK"
 }
 
-/**
- * Read-only - these devices have no on/off command, just a live condition
- * (see AlarmSensor/AlarmSensorRepository), so unlike the sensor dashboard a
- * tile tap does nothing; only the corner drag handle to reposition is wired up.
- * Same dashing.io-style freeform block layout as the temp-sensor dashboard
- * (see DashboardCanvas), sharing its grid math and drag handling but with
- * its own persisted layout (AlarmSensorLayoutStore) - alarm sensor ids and
- * temp sensor ids are different id spaces, so they don't share a store.
- */
+private fun formatTimestamp(millis: Long): String {
+    if (millis <= 0) return "Never"
+    val sdf = SimpleDateFormat("HH:mm:ss dd/MM/yyyy", Locale.getDefault())
+    return sdf.format(Date(millis))
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlarmSensorsScreen(
     alarmSensorRepository: AlarmSensorRepository
@@ -61,48 +70,299 @@ fun AlarmSensorsScreen(
     val tilePositions by alarmSensorRepository.getAlarmSensorTilePositions().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // No separate in-body title or Reset Layout button here - the
-        // TopAppBar (DashboardScreen) already reads "Alarm Sensors" for
-        // this tab and now carries the reset action as an icon (and its
-        // confirmation dialog) itself, shared with the Sensors tab.
-        if (sensors.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = "No alarm sensors reporting yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.padding(32.dp)
+    var selectedSensor by remember { mutableStateOf<AlarmSensor?>(null) }
+    var editingSensorName by remember { mutableStateOf<AlarmSensor?>(null) }
+    var confirmingDeleteSensor by remember { mutableStateOf<AlarmSensor?>(null) }
+    val sensorDetailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val isTablet = maxWidth >= 600.dp
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (sensors.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "No alarm sensors reporting yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(32.dp)
+                    )
+                }
+            } else {
+                AlarmSensorDashboardCanvas(
+                    sensors = sensors,
+                    positions = tilePositions,
+                    onSwap = { movedId, movedOrder, displacedId, displacedOrder ->
+                        scope.launch {
+                            alarmSensorRepository.swapAlarmSensorTilePositions(movedId, movedOrder, displacedId, displacedOrder)
+                        }
+                    },
+                    onTileClick = { sensor ->
+                        selectedSensor = sensor
+                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp)
                 )
             }
-        } else {
-            AlarmSensorDashboardCanvas(
-                sensors = sensors,
-                positions = tilePositions,
-                onSwap = { movedId, movedOrder, displacedId, displacedOrder ->
-                    scope.launch {
-                        alarmSensorRepository.swapAlarmSensorTilePositions(movedId, movedOrder, displacedId, displacedOrder)
+        }
+
+        // Sensor Detail View (Sheet on phone, Dialog on tablet)
+        selectedSensor?.let { sensor ->
+            // Keep sensor data live if updated
+            val liveSensor = sensors.find { it.id == sensor.id } ?: sensor
+            val isBatteryLow = liveSensor.batteryLevel in 1..19
+
+            val detailContent: @Composable () -> Unit = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = liveSensor.name.ifBlank { liveSensor.id },
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = { editingSensorName = liveSensor },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Rename Alarm Sensor",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                Text(
+                    text = "ID: ${liveSensor.id} • ${kindLabel(liveSensor.kind)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Big Status Card
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (liveSensor.triggered) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(20.dp)
+                            .fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = if (liveSensor.triggered) Icons.Default.Warning else Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = if (liveSensor.triggered) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = if (liveSensor.triggered) triggeredLabel(liveSensor.kind) else clearLabel(liveSensor.kind),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = if (liveSensor.triggered) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Metadata cards
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        tonalElevation = 2.dp,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("Battery", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = "${liveSensor.batteryLevel}%",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isBatteryLow) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        tonalElevation = 2.dp,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("Link Quality", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = "${liveSensor.linkQuality} LQI",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    tonalElevation = 2.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Last Updated", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            text = formatTimestamp(liveSensor.lastUpdated),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                TextButton(
+                    onClick = { confirmingDeleteSensor = liveSensor },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete Sensor", modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Delete Alarm Sensor")
+                }
+            }
+
+            if (isTablet) {
+                Dialog(onDismissRequest = { selectedSensor = null }) {
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        tonalElevation = 6.dp,
+                        modifier = Modifier.widthIn(max = 420.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(rememberScrollState())
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            detailContent()
+                        }
+                    }
+                }
+            } else {
+                ModalBottomSheet(
+                    onDismissRequest = { selectedSensor = null },
+                    sheetState = sensorDetailSheetState
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 24.dp)
+                            .padding(bottom = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        detailContent()
+                    }
+                }
+            }
+        }
+
+        editingSensorName?.let { sensor ->
+            var newName by remember { mutableStateOf(sensor.name.ifBlank { sensor.id }) }
+            AlertDialog(
+                onDismissRequest = { editingSensorName = null },
+                title = { Text("Rename Alarm Sensor") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Sensor ID: ${sensor.id}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = newName,
+                            onValueChange = { newName = it },
+                            label = { Text("Sensor Friendly Name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val trimmed = newName.trim()
+                            if (trimmed.isNotEmpty()) {
+                                scope.launch {
+                                    try {
+                                        alarmSensorRepository.updateAlarmSensorName(sensor.id, trimmed)
+                                    } catch (e: Exception) {}
+                                }
+                            }
+                            editingSensorName = null
+                        }
+                    ) {
+                        Text("Save")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { editingSensorName = null }) { Text("Cancel") }
+                }
+            )
+        }
+
+        confirmingDeleteSensor?.let { sensor ->
+            AlertDialog(
+                onDismissRequest = { confirmingDeleteSensor = null },
+                title = { Text("Delete Alarm Sensor?") },
+                text = { Text("Are you sure you want to delete '${sensor.name.ifBlank { sensor.id }}' (${sensor.id})? Its MQTT subscription will be stopped.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                try {
+                                    alarmSensorRepository.deleteAlarmSensor(sensor.id)
+                                    selectedSensor = null
+                                } catch (e: Exception) {}
+                            }
+                            confirmingDeleteSensor = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmingDeleteSensor = null }) { Text("Cancel") }
+                }
             )
         }
     }
 }
 
 /**
- * Thin [DashboardCanvas] wrapper for alarm sensors - see
- * [SensorDashboardCanvas] for the temp-sensor counterpart. onItemClick is
- * left at its no-op default since alarm sensors have no detail view to open.
+ * Thin [DashboardCanvas] wrapper for alarm sensors - passes [onTileClick] so
+ * tapping an alarm sensor tile opens the detail sheet with rename & delete.
  */
 @Composable
 fun AlarmSensorDashboardCanvas(
     sensors: List<AlarmSensor>,
-    positions: List<com.smarthome.data.SensorTilePosition>,
+    positions: List<SensorTilePosition>,
     onSwap: (movedId: String, movedOrder: Int, displacedId: String, displacedOrder: Int) -> Unit,
+    onTileClick: (AlarmSensor) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     DashboardCanvas(
@@ -110,6 +370,7 @@ fun AlarmSensorDashboardCanvas(
         itemId = { it.id },
         positions = positions,
         onSwap = onSwap,
+        onItemClick = onTileClick,
         modifier = modifier
     ) { sensor, sizeDp ->
         AlarmSensorTile(sensor = sensor, sizeDp = sizeDp)
@@ -118,15 +379,13 @@ fun AlarmSensorDashboardCanvas(
 
 /**
  * Compact square dashboard tile - the alarm-sensor counterpart of
- * [SensorTile]. Keeps the same status rules as the old full-width
- * [AlarmSensorCard] (triggered = red tint + warning icon, low-battery red,
- * stale-reading warning) in less space: a small colored dot replaces the
- * old "Last updated: HH:mm:ss" text line.
+ * [SensorTile].
  */
 @Composable
 fun AlarmSensorTile(sensor: AlarmSensor, sizeDp: Dp, modifier: Modifier = Modifier) {
-    val isBatteryLow = sensor.batteryLevel in 1..19 // 0 usually just means "never reported a battery field"
-    val isStale = System.currentTimeMillis() - sensor.lastUpdated > 3600000 // 1 hour
+    val isBatteryLow = sensor.batteryLevel in 1..19
+    val isStale = sensor.lastUpdated > 0 && (System.currentTimeMillis() - sensor.lastUpdated > 3600000)
+    val displayName = sensor.name.ifBlank { sensor.id }
 
     Card(
         modifier = modifier.size(sizeDp),
@@ -150,8 +409,9 @@ fun AlarmSensorTile(sensor: AlarmSensor, sizeDp: Dp, modifier: Modifier = Modifi
                 verticalAlignment = Alignment.Top
             ) {
                 Text(
-                    text = sensor.id,
+                    text = displayName,
                     style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
@@ -170,11 +430,14 @@ fun AlarmSensorTile(sensor: AlarmSensor, sizeDp: Dp, modifier: Modifier = Modifi
                 Icon(
                     imageVector = if (sensor.triggered) Icons.Default.Warning else Icons.Default.CheckCircle,
                     contentDescription = if (sensor.triggered) triggeredLabel(sensor.kind) else clearLabel(sensor.kind),
-                    tint = if (sensor.triggered) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    tint = if (sensor.triggered) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp)
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = if (sensor.triggered) triggeredLabel(sensor.kind) else clearLabel(sensor.kind),
                     style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
                     color = if (sensor.triggered) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -186,9 +449,6 @@ fun AlarmSensorTile(sensor: AlarmSensor, sizeDp: Dp, modifier: Modifier = Modifi
                 )
             }
 
-            // End-padded so this bottom-most row's trailing text doesn't run
-            // under the corner DragHandle DraggableTile overlays on top of
-            // this card - see DraggableTile's doc comment (SensorDashboard.kt).
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

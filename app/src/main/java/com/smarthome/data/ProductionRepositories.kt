@@ -711,21 +711,54 @@ class ProductionAlarmSensorRepository(
     init {
         scope.launch {
             while (isActive) {
-                try {
-                    val response = apiService.getAlarmSensors()
-                    if (response.isSuccessful) {
-                        _alarmSensors.value = response.body()?.member ?: emptyList()
-                        alarmSensorLayoutStore.prune(_alarmSensors.value.map { it.id }.toSet())
-                    }
-                    // Not successful just leaves the last known value in place, same as
-                    // every other repository here - not an error worth surfacing.
-                } catch (e: Exception) {}
+                fetchAlarmSensors()
                 delay(15000)
             }
         }
     }
 
+    private suspend fun fetchAlarmSensors() {
+        try {
+            val response = apiService.getAlarmSensors()
+            if (response.isSuccessful) {
+                _alarmSensors.value = response.body()?.member ?: emptyList()
+                alarmSensorLayoutStore.prune(_alarmSensors.value.map { it.id }.toSet())
+            }
+        } catch (e: Exception) {}
+    }
+
     override fun getAlarmSensors(): Flow<List<AlarmSensor>> = _alarmSensors.asStateFlow()
+
+    override suspend fun updateAlarmSensorName(sensorId: String, newName: String) {
+        val current = _alarmSensors.value.toMutableList()
+        val index = current.indexOfFirst { it.id == sensorId }
+        if (index != -1) {
+            current[index] = current[index].copy(name = newName)
+            _alarmSensors.value = current
+        }
+
+        try {
+            val response = apiService.updateAlarmSensor(sensorId, mapOf("name" to newName))
+            if (response.isSuccessful) {
+                fetchAlarmSensors()
+            } else {
+                fetchAlarmSensors()
+                throw Exception(apiErrorMessage(response, "Failed to update alarm sensor name"))
+            }
+        } catch (e: Exception) {
+            fetchAlarmSensors()
+            throw e
+        }
+    }
+
+    override suspend fun deleteAlarmSensor(sensorId: String) {
+        val response = apiService.deleteAlarmSensor(sensorId)
+        if (response.isSuccessful) {
+            fetchAlarmSensors()
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to delete alarm sensor"))
+        }
+    }
 
     override fun getAlarmSensorTilePositions(): Flow<List<SensorTilePosition>> = alarmSensorLayoutStore.positions
 

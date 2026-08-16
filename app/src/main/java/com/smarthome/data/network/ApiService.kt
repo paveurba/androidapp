@@ -103,6 +103,12 @@ interface ApiService {
     @GET("alarm-sensors")
     suspend fun getAlarmSensors(): Response<HydraCollection<AlarmSensor>>
 
+    @PATCH("alarm-sensors/{id}")
+    suspend fun updateAlarmSensor(@Path("id") id: String, @Body request: Map<String, @JvmSuppressWildcards Any>): Response<AlarmSensor>
+
+    @DELETE("alarm-sensors/{id}")
+    suspend fun deleteAlarmSensor(@Path("id") id: String): Response<Unit>
+
     // Cloud-only (see AgentStatus).
     @GET("agent-status")
     suspend fun getAgentStatus(): Response<AgentStatus>

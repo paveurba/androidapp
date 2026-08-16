@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
@@ -23,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.smarthome.data.*
@@ -427,7 +429,7 @@ fun RelayCard(
                             SwitchItem(
                                 relaySwitch = relaySwitch,
                                 displayInverted = relay.displayInverted,
-                                isEditable = isPhysical,
+                                isEditable = true,
                                 onToggle = { onSwitchToggle(relaySwitch.id) },
                                 onEdit = { onEditChannel(relaySwitch) },
                                 modifier = Modifier.weight(1f)
@@ -460,7 +462,7 @@ fun RelayCard(
 fun SwitchItem(
     relaySwitch: RelaySwitch,
     displayInverted: Boolean = false,
-    isEditable: Boolean = false,
+    isEditable: Boolean = true,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
     modifier: Modifier = Modifier
@@ -469,61 +471,59 @@ fun SwitchItem(
 
     Surface(
         tonalElevation = 1.dp,
-        shape = MaterialTheme.shapes.small,
+        shape = RoundedCornerShape(10.dp),
+        color = if (displayIsOn) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
         modifier = modifier
     ) {
         Row(
             modifier = Modifier
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .padding(start = 10.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .then(if (isEditable) Modifier.clickable { onEdit() } else Modifier)
+                    .clickable(enabled = isEditable) { onEdit() }
             ) {
-                Text(
-                    text = relaySwitch.label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = relaySwitch.id,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = relaySwitch.label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                     if (relaySwitch.schedulable) {
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.padding(start = 2.dp)
-                        ) {
-                            Text(
-                                text = "Schedulable",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
+                        Icon(
+                            Icons.Default.DateRange,
+                            contentDescription = "Schedulable",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(13.dp)
+                        )
                     }
                 }
+                Text(
+                    text = relaySwitch.id,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             if (isEditable) {
                 IconButton(
                     onClick = onEdit,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(30.dp)
                 ) {
                     Icon(
                         Icons.Default.Edit,
                         contentDescription = "Edit Channel",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(15.dp)
                     )
                 }
             }
