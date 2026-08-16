@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
         val notificationRepository = app.notificationRepository
         val alarmSensorRepository = app.alarmSensorRepository
         val agentStatusRepository = app.agentStatusRepository
+        val pairingRepository = app.pairingRepository
 
         requestNotificationPermissionIfNeeded()
 
@@ -62,7 +63,8 @@ class MainActivity : ComponentActivity() {
                         sensorRepository = sensorRepository,
                         notificationRepository = notificationRepository,
                         alarmSensorRepository = alarmSensorRepository,
-                        agentStatusRepository = agentStatusRepository
+                        agentStatusRepository = agentStatusRepository,
+                        pairingRepository = pairingRepository
                     )
                 }
             }

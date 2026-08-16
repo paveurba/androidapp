@@ -571,6 +571,84 @@ class ProductionAgentStatusRepository(
     override fun getAgentStatus(): Flow<AgentStatus?> = _status.asStateFlow()
 }
 
+class ProductionPairingRepository(
+    private val apiService: ApiService,
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+) : PairingRepository {
+
+    private val _status = MutableStateFlow(PairingStatus(active = false, remainingSeconds = 0))
+    private val _discovered = MutableStateFlow<List<DiscoveredDevice>>(emptyList())
+
+    init {
+        // Polls continuously from construction, same convention as every
+        // other repository here (alarm sensors, notifications, agent
+        // status) rather than only while the Pairing tab happens to be
+        // visible - but at a much shorter interval, since pairing is a
+        // short, attention-focused session where the countdown and a
+        // newly-joined device both need to feel responsive while the
+        // screen is open.
+        scope.launch {
+            while (isActive) {
+                try {
+                    val response = apiService.getPairingStatus()
+                    if (response.isSuccessful) {
+                        response.body()?.let { _status.value = PairingStatus(it.active, it.remainingSeconds) }
+                    }
+                } catch (e: Exception) {}
+                delay(2000)
+            }
+        }
+        scope.launch {
+            while (isActive) {
+                try {
+                    val response = apiService.getDiscoveredDevices()
+                    if (response.isSuccessful) {
+                        _discovered.value = response.body()?.member?.map {
+                            DiscoveredDevice(it.id, it.kind, it.topic, it.model, it.manufacturer, it.isActuator, it.discoveredAt)
+                        } ?: emptyList()
+                    }
+                } catch (e: Exception) {}
+                delay(2000)
+            }
+        }
+    }
+
+    override fun getPairingStatus(): Flow<PairingStatus> = _status.asStateFlow()
+
+    override fun getDiscoveredDevices(): Flow<List<DiscoveredDevice>> = _discovered.asStateFlow()
+
+    override suspend fun startPairing(timeoutSeconds: Int?) {
+        val body = if (timeoutSeconds != null) mapOf("timeoutSeconds" to timeoutSeconds) else emptyMap()
+        val response = apiService.startPairing(body)
+        if (response.isSuccessful) {
+            // Optimistic - the real confirmation comes from Zigbee2mqtt's
+            // own bridge/info a moment later (see PairingStatus' doc
+            // comment), picked up by the next poll tick, but this keeps
+            // the button from feeling like it did nothing in the
+            // meantime.
+            _status.value = _status.value.copy(active = true)
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to start pairing"))
+        }
+    }
+
+    override suspend fun stopPairing() {
+        try {
+            apiService.stopPairing()
+        } catch (e: Exception) {}
+        _status.value = _status.value.copy(active = false, remainingSeconds = 0)
+    }
+
+    override suspend fun confirmDevice(deviceId: String, name: String) {
+        val response = apiService.confirmDevice(ConfirmDeviceRequest(deviceId, name))
+        if (response.isSuccessful) {
+            _discovered.value = _discovered.value.filterNot { it.id == deviceId }
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to confirm device"))
+        }
+    }
+}
+
 class ProductionNotificationRepository(
     private val apiService: ApiService,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())

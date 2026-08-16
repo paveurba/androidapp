@@ -7,6 +7,7 @@ import com.smarthome.data.ProductionAgentStatusRepository
 import com.smarthome.data.ProductionAlarmSensorRepository
 import com.smarthome.data.ProductionAuthRepository
 import com.smarthome.data.ProductionNotificationRepository
+import com.smarthome.data.ProductionPairingRepository
 import com.smarthome.data.ProductionSensorRepository
 import com.smarthome.data.ScheduleConfigStore
 import com.smarthome.data.SensorLayoutStore
@@ -64,5 +65,9 @@ class SmartHomeApplication : Application() {
 
     val agentStatusRepository by lazy {
         ProductionAgentStatusRepository(apiService)
+    }
+
+    val pairingRepository by lazy {
+        ProductionPairingRepository(apiService)
     }
 }

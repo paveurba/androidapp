@@ -22,7 +22,8 @@ fun AppNavigation(
     sensorRepository: com.smarthome.data.SensorRepository,
     notificationRepository: com.smarthome.data.NotificationRepository,
     alarmSensorRepository: com.smarthome.data.AlarmSensorRepository,
-    agentStatusRepository: com.smarthome.data.AgentStatusRepository
+    agentStatusRepository: com.smarthome.data.AgentStatusRepository,
+    pairingRepository: com.smarthome.data.PairingRepository
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
@@ -62,6 +63,7 @@ fun AppNavigation(
                 notificationRepository = notificationRepository,
                 alarmSensorRepository = alarmSensorRepository,
                 agentStatusRepository = agentStatusRepository,
+                pairingRepository = pairingRepository,
                 onLogout = {
                     scope.launch {
                         // Must clear local schedule configs and both

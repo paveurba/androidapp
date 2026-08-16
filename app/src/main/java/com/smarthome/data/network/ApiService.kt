@@ -70,4 +70,35 @@ interface ApiService {
 
     @DELETE("notifications")
     suspend fun clearNotifications(): Response<Unit>
+
+    // --- pairing (Zigbee) ---
+
+    @POST("pairing/start")
+    suspend fun startPairing(@Body request: Map<String, Int>): Response<Unit>
+
+    @POST("pairing/stop")
+    suspend fun stopPairing(): Response<Unit>
+
+    @GET("pairing/status")
+    suspend fun getPairingStatus(): Response<PairingStatusResponse>
+
+    @GET("pairing/discovered")
+    suspend fun getDiscoveredDevices(): Response<HydraCollection<DiscoveredDeviceResponse>>
+
+    @POST("pairing/confirm")
+    suspend fun confirmDevice(@Body request: ConfirmDeviceRequest): Response<Map<String, String>>
 }
+
+data class PairingStatusResponse(val active: Boolean, val remainingSeconds: Int)
+
+data class DiscoveredDeviceResponse(
+    val id: String,
+    val kind: String,
+    val topic: String,
+    val model: String = "",
+    val manufacturer: String = "",
+    val isActuator: Boolean = false,
+    val discoveredAt: Long = 0L
+)
+
+data class ConfirmDeviceRequest(val deviceId: String, val name: String)

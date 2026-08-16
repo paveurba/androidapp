@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
@@ -24,6 +25,7 @@ import com.smarthome.data.AgentStatusRepository
 import com.smarthome.data.AlarmSensorRepository
 import com.smarthome.data.AuthPreferences
 import com.smarthome.data.NotificationRepository
+import com.smarthome.data.PairingRepository
 import com.smarthome.data.SensorRepository
 import com.smarthome.data.TempSensor
 import com.smarthome.ui.components.CustomApiServerDialog
@@ -43,6 +45,7 @@ fun DashboardScreen(
     notificationRepository: NotificationRepository,
     alarmSensorRepository: AlarmSensorRepository,
     agentStatusRepository: AgentStatusRepository,
+    pairingRepository: PairingRepository,
     onLogout: () -> Unit
 ) {
     val isCustomServerEnabled by authPreferences.isCustomServerEnabled.collectAsState(initial = false)
@@ -84,7 +87,8 @@ fun DashboardScreen(
                         1 -> "Schedules"
                         2 -> "Relays"
                         3 -> "Alarm Sensors"
-                        else -> "Notifications"
+                        4 -> "Notifications"
+                        else -> "Pairing"
                     })
                 },
                 actions = {
@@ -165,6 +169,12 @@ fun DashboardScreen(
                     },
                     label = { Text("Alerts") }
                 )
+                NavigationBarItem(
+                    selected = currentTab == 5,
+                    onClick = { currentTab = 5 },
+                    icon = { Icon(Icons.Default.Add, contentDescription = "Pairing") },
+                    label = { Text("Pairing") }
+                )
             }
         }
     ) { padding ->
@@ -209,6 +219,7 @@ fun DashboardScreen(
                 2 -> RelaysScreen(sensorRepository = sensorRepository)
                 3 -> AlarmSensorsScreen(alarmSensorRepository = alarmSensorRepository)
                 4 -> NotificationsScreen(notificationRepository = notificationRepository)
+                5 -> PairingScreen(pairingRepository = pairingRepository)
             }
         }
 
