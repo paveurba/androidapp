@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -166,6 +167,7 @@ fun RelaysScreen(
                         items(relays, key = { it.id }) { relay ->
                             RelayCard(
                                 relay = relay,
+                                sensors = sensors,
                                 onSwitchToggle = { switchId ->
                                     scope.launch {
                                         sensorRepository.toggleRelaySwitch(relay.id, switchId)
@@ -186,6 +188,7 @@ fun RelaysScreen(
                         items(relays, key = { it.id }) { relay ->
                             RelayCard(
                                 relay = relay,
+                                sensors = sensors,
                                 onSwitchToggle = { switchId ->
                                     scope.launch {
                                         sensorRepository.toggleRelaySwitch(relay.id, switchId)
@@ -207,10 +210,10 @@ fun RelaysScreen(
     if (showAddRelayDialog) {
         AddRelayModuleDialog(
             onDismiss = { showAddRelayDialog = false },
-            onAdd = { id, name, displayInverted, normalOpen ->
+            onAdd = { id, name, displayInverted, normalOpen, sensorName ->
                 scope.launch {
                     try {
-                        sensorRepository.createRelay(id, name, displayInverted, normalOpen)
+                        sensorRepository.createRelay(id, name, displayInverted, normalOpen, sensorName)
                         snackbarHostState.showSnackbar("Relay module $id added")
                     } catch (e: Exception) {
                         snackbarHostState.showSnackbar("Error: ${e.message}")
@@ -225,10 +228,10 @@ fun RelaysScreen(
         EditRelayModuleDialog(
             relay = relay,
             onDismiss = { editingRelay = null },
-            onSave = { name, displayInverted, normalOpen ->
+            onSave = { name, displayInverted, normalOpen, sensorName ->
                 scope.launch {
                     try {
-                        sensorRepository.updateRelay(relay.id, name = name, displayInverted = displayInverted, normalOpen = normalOpen)
+                        sensorRepository.updateRelay(relay.id, name = name, displayInverted = displayInverted, normalOpen = normalOpen, sensorName = sensorName)
                         snackbarHostState.showSnackbar("Relay module updated")
                     } catch (e: Exception) {
                         snackbarHostState.showSnackbar("Error: ${e.message}")
@@ -361,12 +364,20 @@ fun RelaysScreen(
 @Composable
 fun RelayCard(
     relay: Relay,
+    sensors: List<TempSensor> = emptyList(),
     onSwitchToggle: (String) -> Unit,
     onEditRelay: () -> Unit,
     onAddChannel: () -> Unit,
     onEditChannel: (RelaySwitch) -> Unit
 ) {
     val isPhysical = relay.id != "devices"
+
+    val attachedSensorName = relay.sensorName?.ifBlank { null } ?: if (relay.id == "tasmota3") "Outdoor" else null
+    val attachedSensor = remember(attachedSensorName, sensors) {
+        if (!attachedSensorName.isNullOrBlank()) {
+            sensors.find { it.id.equals(attachedSensorName, ignoreCase = true) || it.name.equals(attachedSensorName, ignoreCase = true) }
+        } else null
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -406,6 +417,36 @@ fun RelayCard(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.tertiary
                             )
+                        }
+                    }
+
+                    if (!attachedSensorName.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Info,
+                                    contentDescription = "Attached Sensor",
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = if (attachedSensor != null)
+                                        "${attachedSensor.name.ifBlank { attachedSensor.id }}: ${"%.1f".format(attachedSensor.currentTemp)}°C"
+                                    else
+                                        "Sensor: $attachedSensorName",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
                         }
                     }
                 }
@@ -542,10 +583,11 @@ fun SwitchItem(
 @Composable
 fun AddRelayModuleDialog(
     onDismiss: () -> Unit,
-    onAdd: (id: String, name: String, displayInverted: Boolean, normalOpen: Boolean) -> Unit
+    onAdd: (id: String, name: String, displayInverted: Boolean, normalOpen: Boolean, sensorName: String?) -> Unit
 ) {
     var id by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
+    var sensorName by remember { mutableStateOf("") }
     var displayInverted by remember { mutableStateOf(false) }
     var normalOpen by remember { mutableStateOf(false) }
 
@@ -566,6 +608,15 @@ fun AddRelayModuleDialog(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Friendly Name (e.g. Garage)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = sensorName,
+                    onValueChange = { sensorName = it },
+                    label = { Text("Attached Tasmota Sensor (Optional)") },
+                    placeholder = { Text("e.g. Outdoor (DS18B20 on tele/<id>/SENSOR)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -597,7 +648,7 @@ fun AddRelayModuleDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onAdd(id.trim(), name.trim().ifEmpty { id.trim() }, displayInverted, normalOpen) },
+                onClick = { onAdd(id.trim(), name.trim().ifEmpty { id.trim() }, displayInverted, normalOpen, sensorName.trim().ifBlank { null }) },
                 enabled = id.isNotBlank()
             ) {
                 Text("Add")
@@ -615,10 +666,11 @@ fun AddRelayModuleDialog(
 fun EditRelayModuleDialog(
     relay: Relay,
     onDismiss: () -> Unit,
-    onSave: (name: String, displayInverted: Boolean, normalOpen: Boolean) -> Unit,
+    onSave: (name: String, displayInverted: Boolean, normalOpen: Boolean, sensorName: String?) -> Unit,
     onDelete: () -> Unit
 ) {
     var name by remember { mutableStateOf(relay.name) }
+    var sensorName by remember { mutableStateOf(relay.sensorName ?: if (relay.id == "tasmota3") "Outdoor" else "") }
     var displayInverted by remember { mutableStateOf(relay.displayInverted) }
     var normalOpen by remember { mutableStateOf(relay.normalOpen) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -632,6 +684,15 @@ fun EditRelayModuleDialog(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Module Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = sensorName,
+                    onValueChange = { sensorName = it },
+                    label = { Text("Attached Tasmota Sensor (e.g. Outdoor)") },
+                    placeholder = { Text("DS18B20 on tele/${relay.id}/SENSOR") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -672,7 +733,7 @@ fun EditRelayModuleDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(name.trim().ifEmpty { relay.id }, displayInverted, normalOpen) }) {
+            Button(onClick = { onSave(name.trim().ifEmpty { relay.id }, displayInverted, normalOpen, sensorName.trim()) }) {
                 Text("Save")
             }
         },

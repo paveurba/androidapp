@@ -581,29 +581,33 @@ class ProductionSensorRepository(
         }
     }
 
-    override suspend fun createRelay(relayId: String, name: String, displayInverted: Boolean, normalOpen: Boolean) {
-        val body = mapOf(
+    override suspend fun createRelay(relayId: String, name: String, displayInverted: Boolean, normalOpen: Boolean, sensorName: String?) {
+        val body = mutableMapOf<String, Any>(
             "id" to relayId,
             "name" to name,
             "displayInverted" to displayInverted,
             "normalOpen" to normalOpen
         )
+        if (!sensorName.isNullOrBlank()) body["sensorName"] = sensorName
         val response = apiService.createRelay(body)
         if (response.isSuccessful) {
             fetchRelays()
+            fetchSensors()
         } else {
             throw Exception(apiErrorMessage(response, "Failed to create relay"))
         }
     }
 
-    override suspend fun updateRelay(relayId: String, name: String?, displayInverted: Boolean?, normalOpen: Boolean?) {
+    override suspend fun updateRelay(relayId: String, name: String?, displayInverted: Boolean?, normalOpen: Boolean?, sensorName: String?) {
         val body = mutableMapOf<String, Any>()
         if (name != null) body["name"] = name
         if (displayInverted != null) body["displayInverted"] = displayInverted
         if (normalOpen != null) body["normalOpen"] = normalOpen
+        if (sensorName != null) body["sensorName"] = sensorName
         val response = apiService.updateRelay(relayId, body)
         if (response.isSuccessful) {
             fetchRelays()
+            fetchSensors()
         } else {
             throw Exception(apiErrorMessage(response, "Failed to update relay"))
         }

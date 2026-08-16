@@ -31,7 +31,7 @@ import com.smarthome.data.NotificationRepository
 import com.smarthome.data.PairingRepository
 import com.smarthome.data.SensorRepository
 import com.smarthome.data.TempSensor
-import com.smarthome.ui.components.CustomApiServerDialog
+import com.smarthome.ui.components.SettingsDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -52,31 +52,29 @@ fun DashboardScreen(
     onLogout: () -> Unit
 ) {
     val isCustomServerEnabled by authPreferences.isCustomServerEnabled.collectAsState(initial = false)
-    var showServerDialog by remember { mutableStateOf(false) }
-
     val agentStatus by agentStatusRepository.getAgentStatus().collectAsState(initial = null)
     val sensors by sensorRepository.getSensors().collectAsState(initial = emptyList())
     val tilePositions by sensorRepository.getSensorTilePositions().collectAsState(initial = emptyList())
     val notifications by notificationRepository.getNotifications().collectAsState(initial = emptyList())
     val unreadCount = notifications.count { !it.isRead }
 
-    var selectedSensor by remember { mutableStateOf<TempSensor?>(null) }
-    var tempUnit by remember { mutableStateOf(TempUnit.CELSIUS) }
     var currentTab by remember { mutableIntStateOf(0) }
+    var tempUnit by remember { mutableStateOf(TempUnit.CELSIUS) }
+    var showServerDialog by remember { mutableStateOf(false) }
     var showResetLayoutConfirm by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    // Sensor detail: a ModalBottomSheet on phone, a small centered Dialog
-    // on tablet (full-screen would waste most of a large tablet display).
-    // Same 600dp breakpoint used elsewhere in the app (e.g.
-    // AlarmSensorsScreen). skipPartiallyExpanded avoids the sheet opening
-    // at a "peek" height needing a drag-up to see the rest.
-    val isTablet = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
+    var selectedSensor by remember { mutableStateOf<TempSensor?>(null) }
+    var editingSensorName by remember { mutableStateOf<TempSensor?>(null) }
+    var confirmingDeleteSensor by remember { mutableStateOf<TempSensor?>(null) }
     val sensorDetailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val isTablet = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 600
 
-    // Sync selected sensor with the latest data from the repository
+    // Keeps the selected sensor in sync with incoming live updates, without
+    // losing the selection just because a new reading arrived over MQTT.
     LaunchedEffect(sensors) {
-        selectedSensor?.let { current ->
+        val current = selectedSensor
+        if (current != null) {
             selectedSensor = sensors.find { it.id == current.id }
         }
     }
@@ -90,8 +88,7 @@ fun DashboardScreen(
                         1 -> "Schedules"
                         2 -> "Relays"
                         3 -> "Alarm Sensors"
-                        4 -> "Notifications"
-                        else -> "Pairing"
+                        else -> "Notifications"
                     })
                 },
                 actions = {
@@ -102,9 +99,6 @@ fun DashboardScreen(
                             Text(if (tempUnit == TempUnit.CELSIUS) "°C" else "°F")
                         }
                     }
-                    // Reset Layout as a top-bar icon, not a text button
-                    // taking up its own row in the body - only the Sensors
-                    // and Alarms tabs have a freeform tile layout to reset.
                     if (currentTab == 0 || currentTab == 3) {
                         IconButton(onClick = { showResetLayoutConfirm = true }) {
                             Icon(
@@ -117,7 +111,7 @@ fun DashboardScreen(
                     IconButton(onClick = { showServerDialog = true }) {
                         Icon(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = "Custom API Server Settings",
+                            contentDescription = "Settings & Pairing",
                             tint = if (isCustomServerEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -128,9 +122,6 @@ fun DashboardScreen(
             )
         },
         bottomBar = {
-            // Sensor detail is always an overlay now (ModalBottomSheet on
-            // phone, Dialog on tablet - see isTablet's doc comment), never
-            // a full-screen replacement, so the bar never needs to hide.
             NavigationBar {
                 NavigationBarItem(
                     selected = currentTab == 0,
@@ -172,12 +163,6 @@ fun DashboardScreen(
                     },
                     label = { Text("Alerts") }
                 )
-                NavigationBarItem(
-                    selected = currentTab == 5,
-                    onClick = { currentTab = 5 },
-                    icon = { Icon(Icons.Default.Add, contentDescription = "Pairing") },
-                    label = { Text("Pairing") }
-                )
             }
         }
     ) { padding ->
@@ -188,20 +173,7 @@ fun DashboardScreen(
         ) {
             when (currentTab) {
                 0 -> {
-                    // Dashboard grid: tiles sit in a responsive grid (more
-                    // columns as the screen gets wider - see
-                    // SensorDashboardCanvas) and can be dragged onto another
-                    // tile to swap places with it, on phone and tablet
-                    // alike. Full width on both now, unlike the old
-                    // fixed-360dp tablet master pane, so a wide tablet
-                    // actually shows more sensors at once instead of
-                    // capping out at ~2 columns.
                     Column(modifier = Modifier.fillMaxSize()) {
-                        // No separate in-body title or Reset Layout button
-                        // here - the TopAppBar already reads "Smart Home"
-                        // for this tab and now carries the reset action as
-                        // an icon (see actions above), so this used to be
-                        // two rows of near-duplicate chrome above the grid.
                         SensorDashboardCanvas(
                             sensors = sensors,
                             positions = tilePositions,
@@ -222,21 +194,18 @@ fun DashboardScreen(
                 2 -> RelaysScreen(sensorRepository = sensorRepository)
                 3 -> AlarmSensorsScreen(alarmSensorRepository = alarmSensorRepository)
                 4 -> NotificationsScreen(notificationRepository = notificationRepository)
-                5 -> PairingScreen(pairingRepository = pairingRepository)
             }
         }
 
         if (showServerDialog) {
-            CustomApiServerDialog(
+            SettingsDialog(
                 authPreferences = authPreferences,
+                pairingRepository = pairingRepository,
                 onDismiss = { showServerDialog = false }
             )
         }
 
         if (showResetLayoutConfirm) {
-            // Same dialog for both tabs the top-bar reset icon can appear
-            // on (see actions above) - just the wording and which
-            // repository gets cleared differ by which tab triggered it.
             val resettingAlarms = currentTab == 3
             AlertDialog(
                 onDismissRequest = { showResetLayoutConfirm = false },

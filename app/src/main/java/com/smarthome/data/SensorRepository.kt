@@ -70,7 +70,8 @@ data class Relay(
     val name: String,
     val switches: List<RelaySwitch>,
     val displayInverted: Boolean = false,
-    val normalOpen: Boolean = false
+    val normalOpen: Boolean = false,
+    val sensorName: String? = null
 )
 
 data class PumpConfig(
@@ -108,13 +109,7 @@ data class GardenResponse(
 // ScheduleConfigStore) independent of whether it currently exists on the
 // server - it's the UI's single source of truth for what a schedule is
 // (device + time window + on/off), not the raw server-side SensorSchedule
-// list, which only ever reflects the subset that's currently *enabled*.
-// Disabling a schedule deletes it server-side (smartapi and the Pi's own
-// store both drop it - see the server-side doc comments on
-// Backend.DeleteSchedule) but this local record survives, so re-enabling
-// recreates it with the same device/hours without the user re-entering
-// anything. remoteId is the server's current schedule ID for this config,
-// non-null only while enabled == true.
+// model (which only exists while enabled).
 data class LocalScheduleConfig(
     val localId: String,
     val device: String,
@@ -135,8 +130,8 @@ interface SensorRepository {
     suspend fun toggleRelaySwitch(relayId: String, switchId: String)
 
     // --- relay & switch CRUD ---
-    suspend fun createRelay(relayId: String, name: String, displayInverted: Boolean = false, normalOpen: Boolean = false)
-    suspend fun updateRelay(relayId: String, name: String? = null, displayInverted: Boolean? = null, normalOpen: Boolean? = null)
+    suspend fun createRelay(relayId: String, name: String, displayInverted: Boolean = false, normalOpen: Boolean = false, sensorName: String? = null)
+    suspend fun updateRelay(relayId: String, name: String? = null, displayInverted: Boolean? = null, normalOpen: Boolean? = null, sensorName: String? = null)
     suspend fun deleteRelay(relayId: String)
     suspend fun createRelaySwitch(relayId: String, switchId: String, label: String, schedulable: Boolean = false)
     suspend fun updateRelaySwitch(relayId: String, switchId: String, label: String? = null, schedulable: Boolean? = null)
