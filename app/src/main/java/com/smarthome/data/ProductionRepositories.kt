@@ -407,6 +407,37 @@ class ProductionSensorRepository(
         }
     }
 
+    override suspend fun updateSensorName(sensorId: String, newName: String) {
+        val current = _sensors.value.toMutableList()
+        val index = current.indexOfFirst { it.id == sensorId }
+        if (index != -1) {
+            current[index] = current[index].copy(name = newName)
+            _sensors.value = current
+        }
+
+        try {
+            val response = apiService.updateSensor(sensorId, mapOf("name" to newName))
+            if (response.isSuccessful) {
+                fetchSensors()
+            } else {
+                fetchSensors()
+                throw Exception(apiErrorMessage(response, "Failed to update sensor name"))
+            }
+        } catch (e: Exception) {
+            fetchSensors()
+            throw e
+        }
+    }
+
+    override suspend fun deleteSensor(sensorId: String) {
+        val response = apiService.deleteSensor(sensorId)
+        if (response.isSuccessful) {
+            fetchSensors()
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to delete sensor"))
+        }
+    }
+
     override fun getLocalScheduleConfigs(): Flow<List<LocalScheduleConfig>> = scheduleConfigStore.configs
 
     override suspend fun clearLocalScheduleConfigs() = scheduleConfigStore.clear()
@@ -547,6 +578,21 @@ class ProductionSensorRepository(
                 currentRelays[relayIndex] = relay.copy(switches = switches)
                 _relays.value = currentRelays
             }
+        }
+    }
+
+    override suspend fun createRelay(relayId: String, name: String, displayInverted: Boolean, normalOpen: Boolean) {
+        val body = mapOf(
+            "id" to relayId,
+            "name" to name,
+            "displayInverted" to displayInverted,
+            "normalOpen" to normalOpen
+        )
+        val response = apiService.createRelay(body)
+        if (response.isSuccessful) {
+            fetchRelays()
+        } else {
+            throw Exception(apiErrorMessage(response, "Failed to create relay"))
         }
     }
 

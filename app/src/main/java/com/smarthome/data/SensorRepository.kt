@@ -129,10 +129,13 @@ data class LocalScheduleConfig(
 interface SensorRepository {
     fun getSensors(): Flow<List<TempSensor>>
     suspend fun updateSetTemp(sensorId: String, newTemp: Float)
+    suspend fun updateSensorName(sensorId: String, newName: String)
+    suspend fun deleteSensor(sensorId: String)
     fun getRelays(): Flow<List<Relay>>
     suspend fun toggleRelaySwitch(relayId: String, switchId: String)
 
     // --- relay & switch CRUD ---
+    suspend fun createRelay(relayId: String, name: String, displayInverted: Boolean = false, normalOpen: Boolean = false)
     suspend fun updateRelay(relayId: String, name: String? = null, displayInverted: Boolean? = null, normalOpen: Boolean? = null)
     suspend fun deleteRelay(relayId: String)
     suspend fun createRelaySwitch(relayId: String, switchId: String, label: String, schedulable: Boolean = false)

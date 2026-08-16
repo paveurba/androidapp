@@ -6,6 +6,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Notifications
@@ -16,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.material.icons.filled.Settings
@@ -261,6 +264,9 @@ fun DashboardScreen(
             )
         }
 
+        var editingSensorName by remember { mutableStateOf<TempSensor?>(null) }
+        var confirmingDeleteSensor by remember { mutableStateOf<TempSensor?>(null) }
+
         // Sensor detail: a Dialog on tablet (centered, sizes to content -
         // a ModalBottomSheet anchors to the bottom edge and stretches
         // full-width, which on a wide tablet put a small centered dial in
@@ -271,12 +277,37 @@ fun DashboardScreen(
         // this on phone) and doesn't have the tablet's empty-space problem.
         selectedSensor?.let { sensor ->
             val detailContent: @Composable () -> Unit = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = sensor.name,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(
+                        onClick = { editingSensorName = sensor },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Rename Sensor",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
                 Text(
-                    text = sensor.name,
-                    style = MaterialTheme.typography.headlineLarge
+                    text = "ID: ${sensor.id}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 ThermostatControl(
                     currentTemp = sensor.currentTemp,
@@ -288,6 +319,17 @@ fun DashboardScreen(
                         }
                     }
                 )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                TextButton(
+                    onClick = { confirmingDeleteSensor = sensor },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete Sensor", modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Delete Sensor")
+                }
             }
 
             if (isTablet) {
@@ -325,6 +367,77 @@ fun DashboardScreen(
                     }
                 }
             }
+        }
+
+        editingSensorName?.let { sensor ->
+            var newName by remember { mutableStateOf(sensor.name) }
+            AlertDialog(
+                onDismissRequest = { editingSensorName = null },
+                title = { Text("Rename Sensor") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Sensor ID: ${sensor.id}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = newName,
+                            onValueChange = { newName = it },
+                            label = { Text("Sensor Name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val trimmed = newName.trim()
+                            if (trimmed.isNotEmpty()) {
+                                scope.launch {
+                                    try {
+                                        sensorRepository.updateSensorName(sensor.id, trimmed)
+                                    } catch (e: Exception) {}
+                                }
+                            }
+                            editingSensorName = null
+                        }
+                    ) {
+                        Text("Save")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { editingSensorName = null }) { Text("Cancel") }
+                }
+            )
+        }
+
+        confirmingDeleteSensor?.let { sensor ->
+            AlertDialog(
+                onDismissRequest = { confirmingDeleteSensor = null },
+                title = { Text("Delete Sensor?") },
+                text = { Text("Are you sure you want to delete '${sensor.name}' (${sensor.id})? It will be removed from all floor heating automations.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                try {
+                                    sensorRepository.deleteSensor(sensor.id)
+                                    selectedSensor = null
+                                } catch (e: Exception) {}
+                            }
+                            confirmingDeleteSensor = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmingDeleteSensor = null }) { Text("Cancel") }
+                }
+            )
         }
     }
 }

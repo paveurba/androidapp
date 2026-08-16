@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -46,6 +45,7 @@ fun RelaysScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Dialog state
+    var showAddRelayDialog by remember { mutableStateOf(false) }
     var editingRelay by remember { mutableStateOf<Relay?>(null) }
     var addingChannelRelay by remember { mutableStateOf<Relay?>(null) }
     var editingChannel by remember { mutableStateOf<Pair<Relay, RelaySwitch>?>(null) }
@@ -54,6 +54,13 @@ fun RelaysScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { showAddRelayDialog = true },
+                icon = { Icon(Icons.Default.Add, contentDescription = "Add Relay") },
+                text = { Text("Add Relay") }
+            )
+        },
         modifier = Modifier.fillMaxSize()
     ) { padding ->
         BoxWithConstraints(
@@ -151,7 +158,8 @@ fun RelaysScreen(
                         columns = StaggeredGridCells.Adaptive(minSize = 340.dp),
                         modifier = Modifier.fillMaxSize(),
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalItemSpacing = 16.dp
+                        verticalItemSpacing = 16.dp,
+                        contentPadding = PaddingValues(bottom = 80.dp)
                     ) {
                         items(relays, key = { it.id }) { relay ->
                             RelayCard(
@@ -170,7 +178,8 @@ fun RelaysScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        contentPadding = PaddingValues(bottom = 80.dp)
                     ) {
                         items(relays, key = { it.id }) { relay ->
                             RelayCard(
@@ -192,6 +201,23 @@ fun RelaysScreen(
     }
 
     // --- Dialogs ---
+
+    if (showAddRelayDialog) {
+        AddRelayModuleDialog(
+            onDismiss = { showAddRelayDialog = false },
+            onAdd = { id, name, displayInverted, normalOpen ->
+                scope.launch {
+                    try {
+                        sensorRepository.createRelay(id, name, displayInverted, normalOpen)
+                        snackbarHostState.showSnackbar("Relay module $id added")
+                    } catch (e: Exception) {
+                        snackbarHostState.showSnackbar("Error: ${e.message}")
+                    }
+                    showAddRelayDialog = false
+                }
+            }
+        )
+    }
 
     editingRelay?.let { relay ->
         EditRelayModuleDialog(
@@ -448,7 +474,7 @@ fun SwitchItem(
     ) {
         Row(
             modifier = Modifier
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -462,19 +488,43 @@ fun SwitchItem(
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = relaySwitch.id,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (relaySwitch.schedulable) {
-                        Text(
-                            text = "• Schedulable",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.padding(start = 2.dp)
+                        ) {
+                            Text(
+                                text = "Schedulable",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
                     }
+                }
+            }
+
+            if (isEditable) {
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "Edit Channel",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
 
@@ -485,6 +535,78 @@ fun SwitchItem(
             )
         }
     }
+}
+
+// --- Add Relay Module Dialog ---
+
+@Composable
+fun AddRelayModuleDialog(
+    onDismiss: () -> Unit,
+    onAdd: (id: String, name: String, displayInverted: Boolean, normalOpen: Boolean) -> Unit
+) {
+    var id by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    var displayInverted by remember { mutableStateOf(false) }
+    var normalOpen by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add Relay Module") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = id,
+                    onValueChange = { id = it },
+                    label = { Text("Module ID (e.g. tasmota8)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Friendly Name (e.g. Garage)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Normally Open (NO)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Inverts MQTT command payload (ON <-> OFF) for normally open hardware", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(checked = normalOpen, onCheckedChange = { normalOpen = it })
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Display Inverted", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Inverts the visual switch status on this screen", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(checked = displayInverted, onCheckedChange = { displayInverted = it })
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onAdd(id.trim(), name.trim().ifEmpty { id.trim() }, displayInverted, normalOpen) },
+                enabled = id.isNotBlank()
+            ) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 // --- Edit Relay Module Dialog ---
@@ -604,7 +726,7 @@ fun EditChannelDialog(
         title = { Text("Edit Channel ${switch.id}") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("Channel ID: ${switch.id}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Module: ${relay.name} (${relay.id}) • Channel ID: ${switch.id}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                 // Sensor Mapping / Channel Label
                 Column {
@@ -612,7 +734,7 @@ fun EditChannelDialog(
                         value = label,
                         onValueChange = { label = it },
                         label = { Text("Channel Label / Sensor Mapping") },
-                        supportingText = { Text("Set to a sensor name to link heating loop to that sensor") },
+                        supportingText = { Text("Set to a sensor name (e.g. Hall) to link floor heating to that sensor") },
                         trailingIcon = {
                             IconButton(onClick = { showSensorDropdown = !showSensorDropdown }) {
                                 Icon(Icons.Default.ArrowDropDown, contentDescription = "Select Sensor")
@@ -652,7 +774,7 @@ fun EditChannelDialog(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Schedulable", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                        Text("Allows creating time-window schedules for this channel", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Enable to allow setting on/off schedules for this switch in the Schedules tab", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(checked = schedulable, onCheckedChange = { schedulable = it })
                 }
@@ -765,7 +887,10 @@ fun AddChannelDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Schedulable", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Schedulable", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Allow on/off schedules in the Schedules tab", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                     Switch(checked = schedulable, onCheckedChange = { schedulable = it })
                 }
             }

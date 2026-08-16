@@ -26,7 +26,10 @@ interface ApiService {
     suspend fun getSensors(): Response<HydraCollection<TempSensor>>
 
     @PATCH("sensors/{id}")
-    suspend fun updateSensor(@Path("id") id: String, @Body sensor: Map<String, Float>): Response<TempSensor>
+    suspend fun updateSensor(@Path("id") id: String, @Body request: Map<String, @JvmSuppressWildcards Any>): Response<TempSensor>
+
+    @DELETE("sensors/{id}")
+    suspend fun deleteSensor(@Path("id") id: String): Response<Unit>
 
     @GET("schedules")
     suspend fun getSchedules(): Response<HydraCollection<SensorSchedule>>
@@ -44,6 +47,9 @@ interface ApiService {
 
     @GET("relays")
     suspend fun getRelays(): Response<HydraCollection<Relay>>
+
+    @POST("relays")
+    suspend fun createRelay(@Body request: Map<String, @JvmSuppressWildcards Any>): Response<Relay>
 
     @PATCH("relays/{id}")
     suspend fun updateRelay(@Path("id") id: String, @Body request: Map<String, @JvmSuppressWildcards Any>): Response<Relay>
