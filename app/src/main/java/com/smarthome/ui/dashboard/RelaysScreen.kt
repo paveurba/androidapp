@@ -732,7 +732,7 @@ fun AddRelayModuleDialog(
                 OutlinedTextField(
                     value = id,
                     onValueChange = { id = it },
-                    label = { Text("Module ID (e.g. tasmota8)") },
+                    label = { Text("Module ID (e.g. relay1)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1368,7 +1368,7 @@ fun GardenWateringDialog(
                     OutlinedTextField(
                         value = newPortRelay,
                         onValueChange = { newPortRelay = it },
-                        label = { Text("Relay (e.g. tasmota7)") },
+                        label = { Text("Relay Module ID") },
                         singleLine = true,
                         modifier = Modifier.weight(1f)
                     )
