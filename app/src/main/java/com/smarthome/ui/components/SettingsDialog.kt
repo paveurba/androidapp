@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,11 +26,15 @@ import com.smarthome.data.PairingRepository
 import com.smarthome.data.PairingStatus
 import kotlinx.coroutines.launch
 
+import com.smarthome.data.ble.BleProvisioningRepository
+import com.smarthome.ui.components.BleProvisioningContent
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsDialog(
     authPreferences: AuthPreferences,
     pairingRepository: PairingRepository,
+    bleRepository: BleProvisioningRepository,
     onDismiss: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -73,13 +78,19 @@ fun SettingsDialog(
                     Tab(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        text = { Text("Zigbee Pairing") },
+                        text = { Text("Zigbee") },
                         icon = { Icon(Icons.Default.Add, contentDescription = "Zigbee Pairing") }
                     )
                     Tab(
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
-                        text = { Text("Server Endpoints") },
+                        text = { Text("WiFi Setup") },
+                        icon = { Icon(Icons.Default.Refresh, contentDescription = "BLE WiFi Setup") }
+                    )
+                    Tab(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        text = { Text("Server") },
                         icon = { Icon(Icons.Default.Settings, contentDescription = "Server Endpoints") }
                     )
                 }
@@ -89,7 +100,11 @@ fun SettingsDialog(
                 // Tab Content
                 when (selectedTab) {
                     0 -> ZigbeePairingTabContent(pairingRepository = pairingRepository)
-                    1 -> ServerEndpointTabContent(
+                    1 -> BleProvisioningContent(
+                        bleRepository = bleRepository,
+                        onFinish = onDismiss
+                    )
+                    2 -> ServerEndpointTabContent(
                         authPreferences = authPreferences,
                         onSaved = onDismiss
                     )

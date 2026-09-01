@@ -49,6 +49,7 @@ fun DashboardScreen(
     alarmSensorRepository: AlarmSensorRepository,
     agentStatusRepository: AgentStatusRepository,
     pairingRepository: PairingRepository,
+    bleProvisioningRepository: com.smarthome.data.ble.BleProvisioningRepository,
     onLogout: () -> Unit
 ) {
     val isCustomServerEnabled by authPreferences.isCustomServerEnabled.collectAsState(initial = false)
@@ -201,6 +202,7 @@ fun DashboardScreen(
             SettingsDialog(
                 authPreferences = authPreferences,
                 pairingRepository = pairingRepository,
+                bleRepository = bleProvisioningRepository,
                 onDismiss = { showServerDialog = false }
             )
         }

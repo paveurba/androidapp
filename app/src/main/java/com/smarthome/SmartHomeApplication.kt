@@ -70,4 +70,8 @@ class SmartHomeApplication : Application() {
     val pairingRepository by lazy {
         ProductionPairingRepository(apiService)
     }
+
+    val bleProvisioningRepository: com.smarthome.data.ble.BleProvisioningRepository by lazy {
+        com.smarthome.data.ble.ProductionBleProvisioningRepository(applicationContext)
+    }
 }

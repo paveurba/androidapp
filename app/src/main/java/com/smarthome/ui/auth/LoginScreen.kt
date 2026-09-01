@@ -17,11 +17,16 @@ import com.smarthome.data.AuthRepository
 import com.smarthome.ui.components.CustomApiServerDialog
 import kotlinx.coroutines.launch
 
+import androidx.compose.material.icons.filled.Refresh
+import com.smarthome.data.ble.BleProvisioningRepository
+import com.smarthome.ui.components.BleProvisioningDialog
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     authPreferences: AuthPreferences,
     authRepository: AuthRepository,
+    bleProvisioningRepository: BleProvisioningRepository,
     onLoginSuccess: (serialNumber: String, otp: String) -> Unit
 ) {
     var isLogin by remember { mutableStateOf(true) }
@@ -30,6 +35,7 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showServerDialog by remember { mutableStateOf(false) }
+    var showBleDialog by remember { mutableStateOf(false) }
 
     val isCustomServerEnabled by authPreferences.isCustomServerEnabled.collectAsState(initial = false)
     val customServerUrl by authPreferences.customServerUrl.collectAsState(initial = null)
@@ -37,7 +43,7 @@ fun LoginScreen(
     val scope = rememberCoroutineScope()
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Top right settings icon button for Custom API Server Mode
+        // Top right buttons for BLE Setup and Custom API Server Mode
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -45,6 +51,13 @@ fun LoginScreen(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(onClick = { showBleDialog = true }) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "BLE WiFi Setup",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
             IconButton(onClick = { showServerDialog = true }) {
                 Icon(
                     imageVector = Icons.Default.Settings,
@@ -165,9 +178,31 @@ fun LoginScreen(
                     TextButton(onClick = { isLogin = !isLogin }) {
                         Text(if (isLogin) "Don't have an account? Register" else "Already registered? Login")
                     }
+
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                    OutlinedButton(
+                        onClick = { showBleDialog = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Set up Pi WiFi via Bluetooth")
+                    }
                 }
             }
         }
+    }
+
+    if (showBleDialog) {
+        BleProvisioningDialog(
+            bleRepository = bleProvisioningRepository,
+            onDismiss = { showBleDialog = false }
+        )
     }
 
     if (showServerDialog) {

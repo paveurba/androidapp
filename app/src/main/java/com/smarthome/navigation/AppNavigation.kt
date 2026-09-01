@@ -23,7 +23,8 @@ fun AppNavigation(
     notificationRepository: com.smarthome.data.NotificationRepository,
     alarmSensorRepository: com.smarthome.data.AlarmSensorRepository,
     agentStatusRepository: com.smarthome.data.AgentStatusRepository,
-    pairingRepository: com.smarthome.data.PairingRepository
+    pairingRepository: com.smarthome.data.PairingRepository,
+    bleProvisioningRepository: com.smarthome.data.ble.BleProvisioningRepository
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
@@ -45,6 +46,7 @@ fun AppNavigation(
             LoginScreen(
                 authPreferences = authPreferences,
                 authRepository = authRepository,
+                bleProvisioningRepository = bleProvisioningRepository,
                 onLoginSuccess = { serialNumber, otp ->
                     scope.launch {
                         authPreferences.saveCredentials(serialNumber, otp)
@@ -64,6 +66,7 @@ fun AppNavigation(
                 alarmSensorRepository = alarmSensorRepository,
                 agentStatusRepository = agentStatusRepository,
                 pairingRepository = pairingRepository,
+                bleProvisioningRepository = bleProvisioningRepository,
                 onLogout = {
                     scope.launch {
                         // Must clear local schedule configs and both
