@@ -20,4 +20,13 @@ interface BleProvisioningRepository {
     fun disconnect()
     suspend fun sendCredentials(ssid: String, password: String): Result<Unit>
     fun reset()
+
+    /**
+     * Clears provisionStatus back to null without touching the underlying
+     * GATT connection - lets the UI return to the credentials form to try
+     * a different network on the same still-connected peripheral, instead
+     * of the only options being "Done" (close entirely) or a hard
+     * disconnect+rescan via reset().
+     */
+    fun clearStatus()
 }

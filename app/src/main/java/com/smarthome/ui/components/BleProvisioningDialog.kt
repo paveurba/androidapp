@@ -488,6 +488,7 @@ fun BleProvisioningContent(
                         onRetry = {
                             isSending = false
                             localError = null
+                            bleRepository.clearStatus()
                         }
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -597,6 +598,18 @@ fun BleProvisioningContent(
                 } else {
                     // Success State
                     Spacer(modifier = Modifier.weight(1f))
+                    OutlinedButton(
+                        onClick = {
+                            ssid = ""
+                            password = ""
+                            localError = null
+                            bleRepository.clearStatus()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Set Up Another Network")
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                     Button(
                         onClick = onFinish,
                         modifier = Modifier.fillMaxWidth()

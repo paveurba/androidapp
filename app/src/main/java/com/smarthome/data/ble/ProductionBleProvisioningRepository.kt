@@ -482,4 +482,8 @@ class ProductionBleProvisioningRepository(
         _provisionStatus.value = null
         _errorMessage.value = null
     }
+
+    override fun clearStatus() {
+        _provisionStatus.value = null
+    }
 }
